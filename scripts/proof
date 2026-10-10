@@ -24,7 +24,7 @@ mkdir -p "$out"
 if [ -n "$(ls -A "$out")" ]; then die "$out is not empty; give a new directory"; fi
 # the record: what was proved, and what said so
 git rev-parse HEAD > "$out/commit.txt"
-exec > >(tee "$out/proof.txt")
+exec > >(tee "$out/proof.txt") 2>&1   # stderr too: a failed run's proof.txt says why it stopped
 boot
 
 # 1. launch
