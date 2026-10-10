@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # jolt proof DIR: the demo on an emulator, driven by taps and read
 #   back through uiautomator; a screenshot at each step into DIR.
-#   AVD=<name> picks the emulator. The helpers, and the boot on console
-#   port 5580, are in emulator-lib.
+#   AVD=<name> picks the emulator: Medium_Phone_API_36.0 by default, and
+#   for the second run any AVD with 16 KB pages. The helpers, and the boot
+#   on console port 5580, are in emulator-lib.
 set -euo pipefail
 IFS=$'\n\t'
 
+# shellcheck disable=SC2034  # read by emulator-lib, which this sources, for its messages
 TOOL=proof
 AVD=${AVD:-Medium_Phone_API_36.0}
 PKG=dev.staton.glimmer.demo

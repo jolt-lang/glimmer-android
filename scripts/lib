@@ -12,7 +12,7 @@ NDK_VERSION=30.0.16248370
 TARGET=tarm64le
 PACK=${PACK:-$HOME/dev/pack-$TARGET-android-api$API}
 NS=${NS:-glimmer-android.demo}
-OUT=${OUT:-android/build/libglimmer_demo.so}
+OUT=${OUT:-build/libglimmer_demo.so}
 
 cd "$(git rev-parse --show-toplevel)"
 : "${ANDROID_HOME:?ANDROID_HOME is not set — run this inside the repository, where mise.toml sets it}"
@@ -21,7 +21,7 @@ BIN="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/darwin-x86_64/bin"
 CC="$BIN/aarch64-linux-android$API-clang"
 [ -x "$CC" ] || die "no $CC"
 
-mkdir -p android/build
+mkdir -p "$(dirname "$OUT")"
 # the alias that puts NS on the path: examples/ for the demo
 ALIAS=${ALIAS:-:examples}
 JOLT_TARGET_CC="$CC" JOLT_TARGET_ARCH_FLAG="" \

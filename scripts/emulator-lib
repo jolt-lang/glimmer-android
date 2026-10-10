@@ -40,14 +40,19 @@ settled() {
   return 1
 }
 # A failed run keeps its logcat too: it is the only record of why. The
-# trap turns the display back whatever happened; before it kills an
-# emulator it started, it gives system_server time to write the setting
-# out, because a kill at once loses it.
+# trap turns the display back whatever happened. Before it kills an
+# emulator it started, it waits and syncs: a setting reaches disk up to
+# 2 s after it changes, and emu kill flushes nothing, so a kill at once
+# can lose the rotation and the next boot starts turned.
 started=""
 cleanup() {
   [ -f "$out/logcat.txt" ] || a logcat -d > "$out/logcat.txt" 2>/dev/null || true
   rotate 0 >/dev/null 2>&1 || true
-  if [ -n "$started" ]; then sleep 5; a emu kill >/dev/null 2>&1 || true; fi
+  if [ -n "$started" ]; then
+    sleep 5
+    a shell sync >/dev/null 2>&1 || true
+    a emu kill >/dev/null 2>&1 || true
+  fi
 }
 on_port() { adb devices | grep "^${SERIAL}[[:space:]]" >/dev/null; }
 

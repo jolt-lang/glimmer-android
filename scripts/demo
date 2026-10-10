@@ -7,12 +7,24 @@ IFS=$'\n\t'
 die() { printf 'demo: %s\n' "$*" >&2; exit 1; }
 
 GRADLE_VERSION=9.8.0
+GRADLE_SHA256=bafd5ce9cfaea0fbccfdc8439a1ac42fbd4cd9c89dc9a988228d8a2639a58e6c   # Gradle's own .sha256
 CACHE=${CACHE:-$HOME/.cache/glimmer-android}
 APP=android/demo
 GRADLE="$CACHE/gradle-$GRADLE_VERSION/bin/gradle"
 
 cd "$(git rev-parse --show-toplevel)"
-[ -x "$GRADLE" ] || die "no Gradle at $GRADLE — install Gradle $GRADLE_VERSION there"
+
+# Gradle, pinned without a wrapper: fetched once into CACHE, and checked
+# against Gradle's published checksum every time it is fetched
+if [ ! -x "$GRADLE" ]; then
+  mkdir -p "$CACHE"
+  zip="$CACHE/gradle-$GRADLE_VERSION-bin.zip"
+  curl -fsSL -o "$zip" "https://services.gradle.org/distributions/gradle-$GRADLE_VERSION-bin.zip"
+  have=$(shasum -a 256 "$zip" | cut -d' ' -f1)
+  [ "$have" = "$GRADLE_SHA256" ] || { rm -f "$zip"; die "gradle-$GRADLE_VERSION-bin.zip is $have, not $GRADLE_SHA256"; }
+  unzip -q -o "$zip" -d "$CACHE"
+  rm -f "$zip"
+fi
 
 # the vocabulary's image, a build product: drawn once, never committed
 png="$APP/src/main/assets/demo.png"
@@ -22,9 +34,9 @@ if [ ! -f "$png" ]; then
   magick -size 64x64 gradient:'#2e7d32-#a5d6a7' "PNG32:$png"
 fi
 
-NS=glimmer-android.demo OUT=android/build/libglimmer_demo.so bash android/scripts/lib
+NS=glimmer-android.demo OUT=build/libglimmer_demo.so bash scripts/lib
 mkdir -p "$APP/src/main/jniLibs/arm64-v8a"
-cp android/build/libglimmer_demo.so "$APP/src/main/jniLibs/arm64-v8a/"
+cp build/libglimmer_demo.so "$APP/src/main/jniLibs/arm64-v8a/"
 
 (cd "$APP" && "$GRADLE" --quiet --console=plain assembleDebug)
 apk="$APP/build/outputs/apk/debug/glimmer-demo-debug.apk"   # rootProject.name
