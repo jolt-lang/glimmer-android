@@ -1,13 +1,14 @@
 (ns glimmer-android.demo
   "glimmer-android's test screens: a label a tap changes and a label
-  made to clip, then, after Next, every tag once. The state lives in
-  atoms, so it outlives the Activity."
+  made to clip; after Next, every tag once; after Passages, wrapped text
+  in a scroll and styled markup. The state lives in atoms, so it
+  outlives the Activity."
   (:require [glimmer.ratom :as r]
             [glimmer-android.core :as ga]
             [jolt.ffi :as ffi]))
 
 (defonce taps (r/atom 0))
-(defonce showing (r/atom :taps))     ; :taps or :vocabulary
+(defonce showing (r/atom :taps))     ; :taps, :vocabulary or :passages
 (defonce ticked (r/atom false))      ; the vocabulary's checkbutton
 
 (defn taps-screen []
@@ -48,19 +49,49 @@
     [:button {:label "Disabled" :sensitive false
               :foreground "#ffffff" :border [1.5 "#ffffff" 0.85] :radius 8
               :font-size 17 :height 48}]
+    [:button {:label "Passages" :on-click #(reset! showing :passages)
+              :foreground "#ffffff" :border [1.5 "#ffffff" 0.85] :radius 8
+              :font-size 17 :height 48}]
     [:label {:label "" :vexpand true}]]])
 
+(def ^:private passages
+  "An app's help text: six passages, together taller than the screen."
+  [["TRACKING A HOLE" "Each hole shows the five mistakes with a box on the right. Tap a box to tick it, tap again to untick. A clean hole has nothing ticked, which is the goal. The arrows at the top move to the previous or next hole; ticks are saved as you go."]
+   ["THE SUMMARY" "Tap Summary at any point for the count of each mistake, the total, and how many holes were clean so far. Back to Round returns you to the hole you were on."]
+   ["ENDING A ROUND" "End Round keeps the round on your phone and shows it, with a practice tip or two when it ran nine holes or more. Done returns to the start screen. Nothing is lost: every ended round is kept."]
+   ["YOUR ROUNDS" "Tap Rounds on the start screen for every round you have kept, newest first. Tap one to read it back, or to delete it. All Time shows your rates per 18 holes across everything, beside your last five rounds."]
+   ["PUTTING THE PHONE AWAY" "Lock it, pocket it, play four holes: when you come back the app is where you left it. If Android has closed the app in the meantime, the start screen offers Continue with the hole you were on."]
+   ["NAMING THE COURSE" "After Start, the app offers to find the course you are standing on. On the first tee, tap Find Courses Near Me and allow location once; pick your course from the five nearest, or tap No Course. The course is kept with the round."]])
+
+(defn passages-screen
+  "Wrapped labels in a scroll, most of them below the first screen, built
+  as the app's help screen was: each must wrap at its view's width."
+  []
+  [:vbox {:vfill true :margin 24 :spacing 16}
+   [:label {:markup [:span {:size "28672" :weight "bold"} "Passages"] :xalign 0 :halign :fill}]
+   [:label {:markup [:span {} "Styled: " [:b "bold"] ", " [:i "italic"] ", "
+                     [:s "struck"] ", " [:u "underlined"]]
+            :xalign 0 :halign :fill}]
+   (into [:scroll {:vexpand true :spacing 0 :halign :fill}]
+         (for [[title body] passages]
+           [:vbox {:spacing 8 :halign :fill :margin 0 :margin-top 12}
+            [:label {:markup [:span {:size "17408" :weight "bold"} title] :xalign 0 :halign :fill}]
+            [:label {:markup [:span {:size "17408"} body] :xalign 0 :wrap true :halign :fill}]]))])
+
 (defn screen []
-  (if (= :vocabulary @showing) [vocabulary] [taps-screen]))
+  (case @showing
+    :vocabulary [vocabulary]
+    :passages   [passages-screen]
+    [taps-screen]))
 
 (defn- main
-  "The entry, once per Activity. The vocabulary takes Back, back to the
-  first screen; the first screen leaves Back to Android. A throw is
+  "The entry, once per Activity. The vocabulary and the passages take
+  Back, back to the first screen; the first screen leaves Back to Android. A throw is
   printed: one that escaped into C would end the process."
   []
   (try (ga/back! (fn [] (reset! showing :taps) (ga/take-back! false)))
        (ga/mount! [screen])
-       (ga/take-back! (= :vocabulary @showing))   ; after a rotation, as before it
+       (ga/take-back! (not= :taps @showing))   ; after a rotation, as before it
        (catch :default e
          (println "glimmer-demo: start threw:" (ex-message e)))))
 

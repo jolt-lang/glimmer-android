@@ -133,8 +133,8 @@ stack vertically).
   `:margin-right`, and `:safe` (padded by the insets, inside a full-bleed root).
 - Scroll: `:spacing`. Layers: `:background`.
 - Label: `:label` (or `:markup`, below), `:xalign` (below 0.34 the start, above
-  0.66 the end, else the centre, as iOS reads it), `:wrap` (any value wraps;
-  without it a label is one line), `:date` (milliseconds, formatted by the
+  0.66 the end, else the centre, as iOS reads it), `:wrap` (any value wraps,
+  each line taking the words that fit; without it a label is one line), `:date` (milliseconds, formatted by the
   phone's locale, medium style) with `:date-markup` (span attributes for it).
   On a label, `:date` replaces the text.
 - Button: `:label`, `:label-date` (milliseconds, shown as a date before

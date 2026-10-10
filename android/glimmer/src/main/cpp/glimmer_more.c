@@ -25,7 +25,7 @@ static jmethodID n_linear, n_frame, n_scroll, n_check, n_image, n_view, n_drawab
     n_spannable, n_fg_span, n_style_span, n_size_span, n_under_span, n_strike_span, n_date,
     s_orientation, s_divider, s_show_dividers, s_fill_viewport, s_button_drawable,
     s_text_size, s_text_color, s_typeface, s_letter_spacing, s_gravity_text,
-    s_gravity_linear, s_max_lines, s_ellipsize, s_min_height, s_min_width,
+    s_gravity_linear, s_max_lines, s_ellipsize, s_break_strategy, s_min_height, s_min_width,
     s_minimum_height, s_minimum_width, s_text, s_set_span, s_color, s_corner, s_stroke,
     s_dsize, s_colors, s_colors_at, s_dorient, s_background, s_alpha, s_enabled,
     s_padding, s_translation_y, s_description, s_checked, s_scale_type, s_bitmap,
@@ -112,6 +112,7 @@ static int prepare(JNIEnv *e) {
   M(s_gravity_text, k_text, "setGravity", "(I)V");
   M(s_max_lines, k_text, "setMaxLines", "(I)V");
   M(s_ellipsize, k_text, "setEllipsize", "(Landroid/text/TextUtils$TruncateAt;)V");
+  M(s_break_strategy, k_text, "setBreakStrategy", "(I)V");
   M(s_min_height, k_text, "setMinHeight", "(I)V");
   M(s_min_width, k_text, "setMinWidth", "(I)V");
   M(s_text, k_text, "setText", "(Ljava/lang/CharSequence;)V");
@@ -324,11 +325,14 @@ EXPORT int ga_set_gravity(int id, int gravity) {
   return ga_failed(e, "ga_set_gravity") ? 0 : 1;
 }
 
-/* 0: as many lines as it needs; n: at most n, the tail ellipsized. */
+/* 0: as many lines as it needs; n: at most n, the tail ellipsized. Each
+ * line takes as many words as fit (BREAK_STRATEGY_SIMPLE): TextView's
+ * default weighs the whole paragraph and can end a line early. */
 EXPORT int ga_set_lines(int id, int n) {
   LIVE("ga_set_lines");
   (*e)->CallVoidMethod(e, v, s_max_lines, n > 0 ? n : 0x7fffffff);
   (*e)->CallVoidMethod(e, v, s_ellipsize, n > 0 ? o_end : NULL);
+  (*e)->CallVoidMethod(e, v, s_break_strategy, 0);
   return ga_failed(e, "ga_set_lines") ? 0 : 1;
 }
 

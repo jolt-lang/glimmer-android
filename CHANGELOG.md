@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A label's lines take as many words as fit (`BREAK_STRATEGY_SIMPLE`).
+  TextView's default weighs the whole paragraph and could end a line with room
+  for the next word, leaving a ragged gap (#2).
+- The demo has a third screen, Passages: wrapped labels in a scroll, and a
+  line of styled markup. The proof opens it and checks that ClipCheck logs
+  nothing, and Back now leaves from it.
 - `ga_text_style` takes a Typeface style (1 bold, 2 italic, 3 both) where it
   took bold, and `ga_run` takes a Typeface style, an underline and a
   strikethrough. Both halves move together under one pin.
@@ -26,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pango's `[:b …]`, `[:i …]`, `[:s …]` and `[:u …]` drew their text plain on
   Android. They now draw bold, italic, struck through and underlined, as on
   glimmer-uikit (#3).
+- ClipCheck logged a wrapped label whose lines fit: it measured each line with
+  `getLineWidth`, which counts the space the line breaks at. It now uses
+  `getLineMax` (#2).
 
 ## [0.1.0] - 2026-10-10
 

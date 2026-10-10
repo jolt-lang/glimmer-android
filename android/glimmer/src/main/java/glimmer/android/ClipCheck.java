@@ -48,6 +48,9 @@ final class ClipCheck implements ViewTreeObserver.OnGlobalLayoutListener {
     }
   }
 
+  // A line's width is getLineMax, not getLineWidth: getLineWidth counts the
+  // space a wrapped line breaks at, which is not drawn, so a line that fits
+  // can measure wider than its view.
   private static boolean clipped(TextView t) {
     Layout l = t.getLayout();
     if (l == null) return false;
@@ -55,7 +58,7 @@ final class ClipCheck implements ViewTreeObserver.OnGlobalLayoutListener {
     int h = t.getHeight() - t.getCompoundPaddingTop() - t.getCompoundPaddingBottom();
     if (l.getHeight() > h) return true;
     for (int i = 0; i < l.getLineCount(); i++) {
-      if (l.getLineWidth(i) > w || l.getEllipsisCount(i) > 0) return true;
+      if (l.getLineMax(i) > w || l.getEllipsisCount(i) > 0) return true;
     }
     return false;
   }
