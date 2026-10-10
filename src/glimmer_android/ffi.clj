@@ -15,7 +15,7 @@
 (ffi/defcfn ga-release*         "ga_release"         [:int] :int)
 (ffi/defcfn ga-text-style*      "ga_text_style"      [:int :double :int :long :int :double] :int)
 (ffi/defcfn ga-runs-begin*      "ga_runs_begin"      [:int :string] :int)
-(ffi/defcfn ga-run*             "ga_run"             [:int :int :long :int :double] :int)
+(ffi/defcfn ga-run*             "ga_run"             [:int :int :long :int :double :int :int] :int)
 (ffi/defcfn ga-runs-end*        "ga_runs_end"        [:int] :int)
 (ffi/defcfn ga-set-gravity*     "ga_set_gravity"     [:int :int] :int)
 (ffi/defcfn ga-set-lines*       "ga_set_lines"       [:int :int] :int)
@@ -54,7 +54,7 @@
    "ga_release" [:int]
    "ga_text_style" [:int :double :int :long :int :double]
    "ga_runs_begin" [:int :string]
-   "ga_run" [:int :int :long :int :double]
+   "ga_run" [:int :int :long :int :double :int :int]
    "ga_runs_end" [:int]
    "ga_set_gravity" [:int :int]
    "ga_set_lines" [:int :int]
@@ -128,13 +128,17 @@
     n))
 
 (defn text-style
-  "Size in sp, an ARGB colour or nil for the view's own, bold, tracking in em."
-  [id size color bold? tracking]
-  (call "ga_text_style" ga-text-style* [id] id size (some? color) (or color 0) bold? tracking))
+  "Size in sp, an ARGB colour or nil for the view's own, a Typeface style
+  (1 bold, 2 italic, 3 both), tracking in em."
+  [id size color style tracking]
+  (call "ga_text_style" ga-text-style* [id] id size (some? color) (or color 0) style tracking))
 
 (defn runs-begin   [id text]        (call "ga_runs_begin" ga-runs-begin* [id] id text))
-(defn run          [start end color bold? relative]
-  (call "ga_run" ga-run* [] start end color bold? relative))
+(defn run
+  "A span over [start, end): an ARGB colour or 0, a Typeface style or 0,
+  a size relative to the base or 0, an underline, a strikethrough."
+  [start end color style relative underline? strike?]
+  (call "ga_run" ga-run* [] start end color style relative underline? strike?))
 (defn runs-end     [id]             (call "ga_runs_end" ga-runs-end* [id] id))
 (defn set-gravity  [id gravity]     (call "ga_set_gravity" ga-set-gravity* [id] id gravity))
 (defn set-lines    [id n]           (call "ga_set_lines" ga-set-lines* [id] id n))

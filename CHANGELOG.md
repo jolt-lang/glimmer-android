@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Italic, strikethrough and underline in a label's markup: a span's
+  `:style "italic"` or `"oblique"`, `:strikethrough "true"`, and `:underline`
+  other than `"none"`.
+- The backend names once each markup element that styles nothing on Android,
+  such as `[:tt …]`, and still draws its text.
+
+### Changed
+
+- `ga_text_style` takes a Typeface style (1 bold, 2 italic, 3 both) where it
+  took bold, and `ga_run` takes a Typeface style, an underline and a
+  strikethrough. Both halves move together under one pin.
+
+### Fixed
+
+- Pango's `[:b …]`, `[:i …]`, `[:s …]` and `[:u …]` drew their text plain on
+  Android. They now draw bold, italic, struck through and underlined, as on
+  glimmer-uikit (#3).
+
 ## [0.1.0] - 2026-10-10
 
 ### Added
