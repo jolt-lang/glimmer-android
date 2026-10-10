@@ -84,18 +84,19 @@ output, and `commit.txt`, the commit it proved.
 
 ### The proofs that have run
 
-The demo proof passed 20 of 20 checks on two arm64 emulators, both API 36, one
-with 4 KB pages and one with 16 KB pages, on Friday 2026-10-09 EDT, with the
-code of this release.
+The demo proof passed 23 of 23 checks on two arm64 emulators, both API 36, one
+with 4 KB pages and one with 16 KB pages, on Saturday 10 October 2026 EDT, with
+the code of this release.
 
 The checks: the label reads back after an `input tap`; the deliberately clipped
 label is logged; the count survives a rotation and a tap after it works;
 `jolt_library_init` ran once and the screen mounted once per Activity; the
 proof swipes the vocabulary's scroll until its fourth button is wholly in view
 and inside it; the checkbutton reads checked after a tap, with the check mark
-only a re-render draws; no prop was unknown and no call failed; and Back, taken
-by the second screen, returns to the first, while a second Back, which nothing
-takes, sends the Activity away.
+only a re-render draws; no prop was unknown and no call failed; the passages,
+wrapped labels in a scroll, show with nothing logged as clipped, and no markup
+element draws plain; and Back, taken by the passages, returns to the first
+screen, while a second Back, which nothing takes, sends the Activity away.
 
 ## Hiccup reference
 
@@ -215,12 +216,12 @@ Work scheduled by glimmer runs inline, since Jolt runs on the UI thread.
 
 ```clojure
 jolt-lang/glimmer-android {:git/url "https://github.com/jolt-lang/glimmer-android"
-                           :git/tag "v0.1.0"
+                           :git/tag "v0.2.0"
                            :git/sha "<sha>"}
 ```
 
-The sha is the tag's commit: the hash on the `refs/tags/v0.1.0^{}` line that
-`git ls-remote https://github.com/jolt-lang/glimmer-android v0.1.0` prints.
+The sha is the tag's commit: the hash on the `refs/tags/v0.2.0^{}` line that
+`git ls-remote https://github.com/jolt-lang/glimmer-android v0.2.0` prints.
 
 Put it in the alias the app's Android build uses, and in its test alias if
 tests use the fake. Two aliases that pin different commits do not fail: jolt
