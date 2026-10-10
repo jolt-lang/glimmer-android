@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-10
+
 ### Added
 
 - The Android backend for glimmer, in its first release. Requiring
@@ -36,3 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `emulator-lib`'s cleanup lost settings written just before the kill, such as
   the turn back to portrait, so the next boot could start turned. It now waits
   and syncs before it kills an emulator it booted.
+
+[Unreleased]: https://github.com/jolt-lang/glimmer-android/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jolt-lang/glimmer-android/releases/tag/v0.1.0

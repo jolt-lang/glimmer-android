@@ -14,7 +14,6 @@
 !/LICENSE
 !/README.md
 !/deps.edn
-!/mise.toml
 
 # CI's lint reads it; the cache and imports beside it stay out
 !/.clj-kondo/config.edn

@@ -14,6 +14,27 @@ GRADLE="$CACHE/gradle-$GRADLE_VERSION/bin/gradle"
 
 cd "$(git rev-parse --show-toplevel)"
 
+# the Android SDK, and adb and the emulator from its platform-tools and emulator
+[ -n "${ANDROID_HOME:-}" ] || die "ANDROID_HOME is not set; point it at the Android SDK, such as ~/Library/Android/sdk"
+[ -d "$ANDROID_HOME" ] || die "ANDROID_HOME is $ANDROID_HOME, which is not a directory; point it at the Android SDK"
+PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+
+# A JDK 21 or newer for Gradle 9.8 and AGP 9.4: JAVA_HOME's, else java on
+# PATH, as Gradle itself picks. java -version prints to stderr. macOS's
+# /usr/bin/java is a stub that fails when no JDK is installed, so a java
+# that fails, or prints no version, counts as none.
+JDK_HINT="set JAVA_HOME to a JDK 21 or newer, or put its java on PATH"
+java=java
+[ -n "${JAVA_HOME:-}" ] && java="$JAVA_HOME/bin/java"
+jv=$("$java" -version 2>&1) || die "no JDK: $java -version failed; $JDK_HINT"
+jv=$(sed -n 's/.* version "\([^"]*\)".*/\1/p' <<<"$jv" | head -n 1)
+case "$jv" in
+  1.*) major=$(cut -d. -f2 <<<"$jv") ;;   # 1.8.0_x is Java 8
+  *)   major=${jv%%[!0-9]*} ;;
+esac
+[ -n "$major" ] || die "no JDK: $java -version names no version; $JDK_HINT"
+[ "$major" -ge 21 ] || die "$java is Java $jv, older than JDK 21; $JDK_HINT"
+
 # Gradle, pinned without a wrapper: fetched once into CACHE, and checked
 # against Gradle's published checksum every time it is fetched. It is
 # unzipped beside the cache and moved into place only once whole, so an

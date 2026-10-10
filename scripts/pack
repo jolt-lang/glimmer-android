@@ -20,7 +20,10 @@ case "$(uname -s)-$(uname -m)" in
   *) die "built on an Apple Silicon Mac only: $(uname -s)-$(uname -m)" ;;
 esac
 
-: "${ANDROID_HOME:?ANDROID_HOME is not set — run this inside the repository, where mise.toml sets it}"
+# the Android SDK, and adb and the emulator from its platform-tools and emulator
+[ -n "${ANDROID_HOME:-}" ] || die "ANDROID_HOME is not set; point it at the Android SDK, such as ~/Library/Android/sdk"
+[ -d "$ANDROID_HOME" ] || die "ANDROID_HOME is $ANDROID_HOME, which is not a directory; point it at the Android SDK"
+PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 BIN="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/darwin-x86_64/bin"
 CC="$BIN/aarch64-linux-android$API-clang"
 [ -x "$CC" ] || die "no $CC — install the NDK: sdkmanager --install \"ndk;$NDK_VERSION\" (or, with Google's Android CLI, android sdk install ndk/$NDK_VERSION)"
