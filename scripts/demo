@@ -15,15 +15,21 @@ GRADLE="$CACHE/gradle-$GRADLE_VERSION/bin/gradle"
 cd "$(git rev-parse --show-toplevel)"
 
 # Gradle, pinned without a wrapper: fetched once into CACHE, and checked
-# against Gradle's published checksum every time it is fetched
+# against Gradle's published checksum every time it is fetched. It is
+# unzipped beside the cache and moved into place only once whole, so an
+# interrupted unzip never leaves a bin/gradle that looks installed.
 if [ ! -x "$GRADLE" ]; then
   mkdir -p "$CACHE"
-  zip="$CACHE/gradle-$GRADLE_VERSION-bin.zip"
+  stage=$(mktemp -d "$CACHE/.gradle-$GRADLE_VERSION.XXXXXX")
+  trap 'rm -rf "$stage"' EXIT
+  zip="$stage/gradle-$GRADLE_VERSION-bin.zip"
   curl -fsSL -o "$zip" "https://services.gradle.org/distributions/gradle-$GRADLE_VERSION-bin.zip"
   have=$(shasum -a 256 "$zip" | cut -d' ' -f1)
-  [ "$have" = "$GRADLE_SHA256" ] || { rm -f "$zip"; die "gradle-$GRADLE_VERSION-bin.zip is $have, not $GRADLE_SHA256"; }
-  unzip -q -o "$zip" -d "$CACHE"
-  rm -f "$zip"
+  [ "$have" = "$GRADLE_SHA256" ] || die "gradle-$GRADLE_VERSION-bin.zip is $have, not $GRADLE_SHA256"
+  unzip -q "$zip" -d "$stage"
+  [ -x "$stage/gradle-$GRADLE_VERSION/bin/gradle" ] || die "gradle-$GRADLE_VERSION-bin.zip holds no gradle-$GRADLE_VERSION/bin/gradle"
+  rm -rf "$CACHE/gradle-$GRADLE_VERSION"   # a partial install from before this check
+  mv "$stage/gradle-$GRADLE_VERSION" "$CACHE/"
 fi
 
 # the vocabulary's image, a build product: drawn once, never committed
