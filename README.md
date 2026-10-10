@@ -32,9 +32,13 @@ Android's UI thread.
 ```
 
 glimmer-android grew inside an app before it was extracted, so its vocabulary is
-what real screens needed, and the same hiccup renders on glimmer-uikit.
-Components, reactive state and reconciliation are documented in glimmer's
-README. What follows is the Android-specific part.
+what real screens needed, and the same hiccup renders on glimmer-uikit, with
+one exception: in a label's markup, Pango's style tags (`[:b …]`, `[:i …]`,
+`[:s …]`, `[:u …]`) are ignored on Android, which reads only a span's
+attributes. For bold on both, write `[:span {:weight "bold"} …]`; see Markup
+under [Hiccup reference](#hiccup-reference). Components, reactive state and
+reconciliation are documented in glimmer's README. What follows is the
+Android-specific part.
 
 ## Requirements
 
@@ -157,7 +161,10 @@ glimmer-uikit and glimmer-gtk use: `[:span {:foreground "#ffffff" :size
 `:weight "bold"`, `:font_family` (a name containing "Bold" reads as bold) and
 `:letter_spacing` are read, and spans nest. The first run is the label's style,
 and a later run that differs gets an Android span. Only span attributes are
-read: an element's name, such as `:b`, styles nothing.
+read: an element's name styles nothing, so `[:b …]`, `[:i …]`, `[:s …]` and
+`[:u …]` draw their text plain, where glimmer-uikit styles it. Write bold as
+`[:span {:weight "bold"} …]`, which both backends read. Italic, underline and
+strikethrough have no Android form yet, by tag or by attribute.
 
 **An unknown prop is ignored, and said out loud.** A prop that is neither common
 nor in its tag's list does nothing, and the backend prints one line naming the
