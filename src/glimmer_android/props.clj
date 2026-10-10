@@ -22,15 +22,29 @@
 
 (def ^:private default-size 17.0)
 
+(def ^:private tag-styles
+  "The style each Pango element's name gives, as glimmer-uikit reads it.
+  Another element draws its text plain."
+  {:span {} :b {:bold true} :i {:italic true} :s {:strike true} :u {:underline true}})
+
 (defn- style
-  "The run style a span's attributes give, over `base`."
-  [base a]
-  (cond-> base
+  "The run style element `tag` and its attributes `a` give, over `base`."
+  [base tag a]
+  (cond-> (merge base (tag-styles tag))
     (:size a)           (assoc :size (pango-pt (:size a)))
     (:foreground a)     (assoc :color (argb (:foreground a)))
     (= "bold" (:weight a)) (assoc :bold true)
     (some-> (:font_family a) (str/includes? "Bold")) (assoc :bold true)
+    (#{"italic" "oblique"} (:style a)) (assoc :italic true)
+    (= "true" (:strikethrough a)) (assoc :strike true)
+    (and (:underline a) (not (#{"none" "false"} (:underline a)))) (assoc :underline true)
     (:letter_spacing a) (assoc :spacing-pt (pango-pt (:letter_spacing a)))))
+
+(defn typeface
+  "A run's bold and italic as Android's Typeface style: 1 bold, 2 italic,
+  3 both."
+  [{:keys [bold italic]}]
+  (+ (if bold 1 0) (if italic 2 0)))
 
 (defn- finish
   "A run as C takes it: tracking in em, no working keys."
@@ -46,27 +60,32 @@
 
 (defn runs
   "Pango hiccup, or a string, as {:text s :runs [{:start :end :size …}]}.
-  A run covers its span's own text and its children's. Offsets are
-  UTF-16 units."
+  A run covers its element's own text and its children's. Offsets are
+  UTF-16 units. :plain, when present, holds the elements whose names
+  style nothing here."
   [markup]
-  (let [text (StringBuilder.) at (atom 0) out (atom [])]
+  (let [text (StringBuilder.) at (atom 0) out (atom []) plain (atom #{})]
     (letfn [(walk [node st]
               (cond
                 (string? node) (do (.append text node) (swap! at + (utf16-length node)))
                 (vector? node)
-                (let [[_ a & kids] node
+                (let [[tag a & kids] node
                       [a kids] (if (map? a) [a kids] [{} (cons a kids)])
-                      st (style st a)
+                      st (style st tag a)
                       start @at]
+                  (when-not (contains? tag-styles tag) (swap! plain conj tag))
                   (doseq [k kids] (walk k st))
                   (swap! out conj (finish (assoc st :start start :end @at))))
                 :else nil))]
       (walk (if (string? markup) [:span {} markup] markup) {:size default-size})
-      {:text (str text)
-       ;; a parent run is added after its children; at one start the
-       ;; longer run, the parent, comes first and is the base
-       :runs (vec (sort-by (juxt :start (comp - :end))
-                           (map #(select-keys % [:start :end :size :color :bold :tracking]) @out)))})))
+      (cond-> {:text (str text)
+               ;; a parent run is added after its children; at one start the
+               ;; longer run, the parent, comes first and is the base
+               :runs (vec (sort-by (juxt :start (comp - :end))
+                                   (map #(select-keys % [:start :end :size :color :bold :italic
+                                                         :underline :strike :tracking])
+                                        @out)))}
+        (seq @plain) (assoc :plain @plain)))))
 
 (defn side
   "iOS's reading of :xalign: below 0.34 the start, above 0.66 the end."

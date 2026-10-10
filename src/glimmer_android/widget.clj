@@ -43,27 +43,45 @@
   (let [[w colour alpha] border]
     (f/set-box id (p/argb background) (or radius 0) (or w 0) (if colour (p/argb colour (or alpha 1.0)) 0))))
 
+(defn- span
+  "ga_run's arguments for what run `r` draws over `under`, the style
+  under it, or nil when it draws nothing more."
+  [r under]
+  (let [new?     #(boolean (and (% r) (not (% under))))
+        color    (when (not= (:color r) (:color under)) (:color r))
+        style    (p/typeface {:bold (new? :bold) :italic (new? :italic)})
+        relative (if (= (:size r) (:size under)) 0 (/ (:size r) (:size under)))]
+    (when (or color (pos? style) (pos? relative) (new? :underline) (new? :strike))
+      [(:start r) (:end r) (or color 0) style relative (new? :underline) (new? :strike)])))
+
+(defn- warn-plain!
+  "Print one line for each markup element in `tags` that styles nothing
+  here, once per element."
+  [tags]
+  (doseq [t tags :when (not (contains? @warned [:markup t]))]
+    (swap! warned conj [:markup t])
+    (println "glimmer-android: markup element" t "draws its text plain")))
+
 (defn- text!
   "A label's text: its first run is the style, and a later run that
-  differs gets a span. A :date is the platform's formatting of it, styled
-  by :date-markup's span attributes, as glimmer-uikit draws it. On a
-  :label, :date replaces :label and :markup, unlike a :button's
-  :label-date, which goes before its :label."
+  differs gets a span. The first run's underline and strikethrough are
+  spans too, as the style draws no line. A :date is the platform's
+  formatting of it, styled by :date-markup's span attributes, as
+  glimmer-uikit draws it. On a :label, :date replaces :label and :markup,
+  unlike a :button's :label-date, which goes before its :label."
   [id {:keys [markup label date date-markup]}]
-  (let [{:keys [text runs]} (p/runs (cond date   [:span (or date-markup {}) (f/format-date date)]
-                                          markup markup
-                                          :else  (str (or label ""))))
-        base (first runs)]
-    (f/text-style id (:size base) (:color base) (boolean (:bold base)) (or (:tracking base) 0))
-    (if (= 1 (count runs))
+  (let [{:keys [text runs plain]} (p/runs (cond date   [:span (or date-markup {}) (f/format-date date)]
+                                                markup markup
+                                                :else  (str (or label ""))))
+        base  (first runs)
+        spans (keep identity (cons (span base (dissoc base :underline :strike))
+                                   (map #(span % base) (rest runs))))]
+    (warn-plain! plain)
+    (f/text-style id (:size base) (:color base) (p/typeface base) (or (:tracking base) 0))
+    (if (empty? spans)
       (f/set-text id text)
       (do (f/runs-begin id text)
-          (doseq [r (rest runs)
-                  :let [color    (when (not= (:color r) (:color base)) (:color r))
-                        bold?    (and (:bold r) (not (:bold base)))
-                        relative (if (= (:size r) (:size base)) 0 (/ (:size r) (:size base)))]
-                  :when (or color bold? (pos? relative))]
-            (f/run (:start r) (:end r) (or color 0) bold? relative))
+          (doseq [s spans] (apply f/run s))
           (f/runs-end id)))))
 
 (def ^:private common
@@ -100,7 +118,7 @@
                    (fn [id p] (f/set-text id (str (some-> (:label-date p) f/format-date) (:label p))))]
                   [[:font-size :font-weight :foreground]
                    (fn [id p] (f/text-style id (or (:font-size p) 15) (some-> (:foreground p) p/argb)
-                                            (= :bold (:font-weight p)) 0))]
+                                            (p/typeface {:bold (= :bold (:font-weight p))}) 0))]
                   [[:background :radius :border] box!]
                   [[:padding] (fn [id p] (let [x (or (:padding p) 0)] (f/set-padding id x 0 x 0)))]
                   [[:sensitive] (fn [id p] (f/set-enabled id (not (false? (:sensitive p)))))]
@@ -109,7 +127,7 @@
                       [[[:active :symbol :foreground]
                         (fn [id p] (f/set-checked id (boolean (:active p)))
                           (f/set-text id (if (:active p) "✓" ""))
-                          (f/text-style id (or (:symbol p) 24) (some-> (:foreground p) p/argb) false 0))]
+                          (f/text-style id (or (:symbol p) 24) (some-> (:foreground p) p/argb) 0 0))]
                        [[:background :radius] (fn [id p] (box! id (select-keys p [:background :radius])))]
                        [[:description] (fn [id p] (f/set-description id (or (:description p) "")))]])
    ;; no :src, or no :stops, clears the view: "" is C's word for no image,

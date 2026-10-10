@@ -126,16 +126,31 @@ grep "clipped:" <<<"$log" | sed 's/.*clipped:/clipped:/' | sort | uniq -c | sed 
 # where the vocabulary's title sits: below the status bar by the safe inset
 dump | tr '>' '\n' | grep 'text="Vocabulary"' | sed -n 's/.*\(bounds="[^"]*"\).*/proof: the title at \1/p' || true
 
-# 7. Back: the vocabulary takes it, so Back reaches the callback and
+# 7. the passages: wrapped labels in a scroll, most below the first
+#    screen. In 0.1.0 ClipCheck logged a line that fit, as getLineWidth
+#    counts the space it breaks at. Each must be unlogged once layout has
+#    been quiet; ClipCheck walks 250 ms after the last pass.
+clips() { a logcat -d -s "glimmer-android:*" | grep -c "clipped:" || true; }
+before=$(clips)
+IFS=" " read -r x y <<<"$(centre Passages)"
+[ -n "${x:-}" ] || die "no Passages button in the tree"
+a shell input tap "$x" "$y"
+sleep 2; shot 9-passages
+check "the passages show, the styled line first" has "Styled: bold, italic, struck, underlined"
+check "no passage was logged as clipped ($(( $(clips) - before )))" test "$(clips)" = "$before"
+log=$(a logcat -d -s "glimmer-android:*")
+check "no markup element drew plain" test -z "$(grep "draws its text plain" <<<"$log" || true)"
+
+# 8. Back: the passages take it, so Back reaches the callback and
 #    shows the first screen; there nothing takes it, so a second Back is
 #    Android's own, and the Activity leaves the foreground.
 backs() { a logcat -d -s "glimmer-android:*" | grep -c "glimmer-android: back[[:space:]]*$" || true; }
 a shell input keyevent 4
-sleep 2; shot 9-back
+sleep 2; shot 10-back
 check "input keyevent 4 reached the callback: the first screen's Tap is back" has "Tap"
 check "C logged one Back ($(backs))" test "$(backs)" = 1
 a shell input keyevent 4
-sleep 2; shot 10-back-again
+sleep 2; shot 11-back-again
 # dumpsys first: in a pipe after !, an adb that failed would read as gone
 gone() {
   local w

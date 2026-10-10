@@ -20,12 +20,12 @@ static int ready;
 static jclass k_linear, k_frame, k_scroll, k_check, k_image, k_view, k_text, k_compound,
     k_drawable, k_lparams, k_flparams, k_vparams, k_typeface, k_spannable, k_fg_span,
     k_style_span, k_size_span, k_truncate, k_scale, k_orient, k_date_fmt, k_date,
-    k_bitmap_fac, k_assets, k_stream, k_build, k_intent, k_uri;
+    k_bitmap_fac, k_assets, k_stream, k_build, k_intent, k_uri, k_under_span, k_strike_span;
 static jmethodID n_linear, n_frame, n_scroll, n_check, n_image, n_view, n_drawable,
-    n_spannable, n_fg_span, n_style_span, n_size_span, n_date,
+    n_spannable, n_fg_span, n_style_span, n_size_span, n_under_span, n_strike_span, n_date,
     s_orientation, s_divider, s_show_dividers, s_fill_viewport, s_button_drawable,
     s_text_size, s_text_color, s_typeface, s_letter_spacing, s_gravity_text,
-    s_gravity_linear, s_max_lines, s_ellipsize, s_min_height, s_min_width,
+    s_gravity_linear, s_max_lines, s_ellipsize, s_break_strategy, s_min_height, s_min_width,
     s_minimum_height, s_minimum_width, s_text, s_set_span, s_color, s_corner, s_stroke,
     s_dsize, s_colors, s_colors_at, s_dorient, s_background, s_alpha, s_enabled,
     s_padding, s_translation_y, s_description, s_checked, s_scale_type, s_bitmap,
@@ -41,7 +41,8 @@ static jclass *const class_slots[] = {
     &k_linear, &k_frame, &k_scroll, &k_check, &k_image, &k_view, &k_text, &k_compound,
     &k_drawable, &k_lparams, &k_flparams, &k_vparams, &k_typeface, &k_spannable, &k_fg_span,
     &k_style_span, &k_size_span, &k_truncate, &k_scale, &k_orient, &k_date_fmt, &k_date,
-    &k_bitmap_fac, &k_assets, &k_stream, &k_build, &k_intent, &k_uri};
+    &k_bitmap_fac, &k_assets, &k_stream, &k_build, &k_intent, &k_uri, &k_under_span,
+    &k_strike_span};
 static jobject *const object_slots[] = {&o_end, &o_center_crop, &o_top_bottom};
 
 /* Give back the global references a failed prepare() took. */
@@ -81,7 +82,8 @@ static int prepare(JNIEnv *e) {
       "android/widget/ImageView$ScaleType", "android/graphics/drawable/GradientDrawable$Orientation",
       "java/text/DateFormat", "java/util/Date", "android/graphics/BitmapFactory",
       "android/content/res/AssetManager", "java/io/InputStream", "android/os/Build$VERSION",
-      "android/content/Intent", "android/net/Uri"};
+      "android/content/Intent", "android/net/Uri", "android/text/style/UnderlineSpan",
+      "android/text/style/StrikethroughSpan"};
   for (size_t i = 0; i < sizeof class_slots / sizeof class_slots[0]; i++)
     if (!(*class_slots[i] = ga_class(e, ns[i]))) return 0;
   const char *ctx = "(Landroid/content/Context;)V";
@@ -93,6 +95,8 @@ static int prepare(JNIEnv *e) {
   M(n_fg_span, k_fg_span, "<init>", "(I)V");
   M(n_style_span, k_style_span, "<init>", "(I)V");
   M(n_size_span, k_size_span, "<init>", "(F)V");
+  M(n_under_span, k_under_span, "<init>", "()V");
+  M(n_strike_span, k_strike_span, "<init>", "()V");
   M(n_date, k_date, "<init>", "(J)V");
   M(s_orientation, k_linear, "setOrientation", "(I)V");
   M(s_divider, k_linear, "setDividerDrawable", "(Landroid/graphics/drawable/Drawable;)V");
@@ -108,6 +112,7 @@ static int prepare(JNIEnv *e) {
   M(s_gravity_text, k_text, "setGravity", "(I)V");
   M(s_max_lines, k_text, "setMaxLines", "(I)V");
   M(s_ellipsize, k_text, "setEllipsize", "(Landroid/text/TextUtils$TruncateAt;)V");
+  M(s_break_strategy, k_text, "setBreakStrategy", "(I)V");
   M(s_min_height, k_text, "setMinHeight", "(I)V");
   M(s_min_width, k_text, "setMinWidth", "(I)V");
   M(s_text, k_text, "setText", "(Ljava/lang/CharSequence;)V");
@@ -245,8 +250,9 @@ jobject container(int id) {
 }
 
 /* A label's or button's base style: size in sp; a colour in ARGB when
- * has_color, else the view's own colours back; bold; tracking in em. */
-EXPORT int ga_text_style(int id, double size, int has_color, long long color, int bold, double tracking) {
+ * has_color, else the view's own colours back; a Typeface style (1 bold,
+ * 2 italic, 3 both); tracking in em. */
+EXPORT int ga_text_style(int id, double size, int has_color, long long color, int style, double tracking) {
   LIVE("ga_text_style");
   (*e)->CallVoidMethod(e, v, s_text_size, 2, (jfloat)size);   /* COMPLEX_UNIT_SP */
   if (ga_failed(e, "ga_text_style size")) return 0;
@@ -259,7 +265,7 @@ EXPORT int ga_text_style(int id, double size, int has_color, long long color, in
   if (has_color) (*e)->CallVoidMethod(e, v, s_text_color, (jint)color);
   else (*e)->CallVoidMethod(e, v, s_set_colors, colors[id]);
   if (ga_failed(e, "ga_text_style colour")) return 0;
-  (*e)->CallVoidMethod(e, v, s_typeface, NULL, bold ? 1 : 0);
+  (*e)->CallVoidMethod(e, v, s_typeface, NULL, style & 3);
   if (ga_failed(e, "ga_text_style typeface")) return 0;
   (*e)->CallVoidMethod(e, v, s_letter_spacing, (jfloat)tracking);
   return ga_failed(e, "ga_text_style") ? 0 : 1;
@@ -287,14 +293,18 @@ static int add_span(JNIEnv *e, jobject span, int start, int end) {
   return !ga_failed(e, "setSpan");
 }
 
-/* One run's differences from the base: a colour (0: none), bold, and a
- * size relative to the base (0: none). start and end are UTF-16 offsets. */
-EXPORT int ga_run(int start, int end, long long color, int bold, double relative) {
+/* One run's differences from the base: a colour (0: none), a Typeface
+ * style (0: none), a size relative to the base (0: none), an underline
+ * and a strikethrough. start and end are UTF-16 offsets. */
+EXPORT int ga_run(int start, int end, long long color, int style, double relative, int underline,
+                  int strike) {
   JNIEnv *e = ga_env();
   if (!e || !run_text) { LOGE("ga_run: no text begun"); return 0; }
   if (color && !add_span(e, (*e)->NewObject(e, k_fg_span, n_fg_span, (jint)color), start, end)) return 0;
-  if (bold && !add_span(e, (*e)->NewObject(e, k_style_span, n_style_span, 1), start, end)) return 0;
+  if ((style & 3) && !add_span(e, (*e)->NewObject(e, k_style_span, n_style_span, style & 3), start, end)) return 0;
   if (relative > 0 && !add_span(e, (*e)->NewObject(e, k_size_span, n_size_span, (jfloat)relative), start, end)) return 0;
+  if (underline && !add_span(e, (*e)->NewObject(e, k_under_span, n_under_span), start, end)) return 0;
+  if (strike && !add_span(e, (*e)->NewObject(e, k_strike_span, n_strike_span), start, end)) return 0;
   return 1;
 }
 
@@ -315,11 +325,14 @@ EXPORT int ga_set_gravity(int id, int gravity) {
   return ga_failed(e, "ga_set_gravity") ? 0 : 1;
 }
 
-/* 0: as many lines as it needs; n: at most n, the tail ellipsized. */
+/* 0: as many lines as it needs; n: at most n, the tail ellipsized. Each
+ * line takes as many words as fit (BREAK_STRATEGY_SIMPLE): TextView's
+ * default weighs the whole paragraph and can end a line early. */
 EXPORT int ga_set_lines(int id, int n) {
   LIVE("ga_set_lines");
   (*e)->CallVoidMethod(e, v, s_max_lines, n > 0 ? n : 0x7fffffff);
   (*e)->CallVoidMethod(e, v, s_ellipsize, n > 0 ? o_end : NULL);
+  (*e)->CallVoidMethod(e, v, s_break_strategy, 0);
   return ga_failed(e, "ga_set_lines") ? 0 : 1;
 }
 

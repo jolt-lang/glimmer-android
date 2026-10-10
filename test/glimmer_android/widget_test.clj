@@ -101,8 +101,34 @@
            (after-create :label {} {:markup [:span {:size "34816"} "R"]}))))
   (testing "two runs that differ: the first is the style, the second a span"
     (is (= [["ga_text_style" 1 17.0 0 0 0 0.0] ["ga_runs_begin" 1 "a b"]
-            ["ga_run" 2 3 0xFFFF0000 1 0.0] ["ga_runs_end" 1]]
-           (after-create :label {} {:markup [:span {} "a " [:span {:weight "bold" :foreground "#ff0000"} "b"]]})))))
+            ["ga_run" 2 3 0xFFFF0000 1 0.0 0 0] ["ga_runs_end" 1]]
+           (after-create :label {} {:markup [:span {} "a " [:span {:weight "bold" :foreground "#ff0000"} "b"]]}))))
+  (testing "two runs alike: no span, so plain text"
+    (is (= [["ga_text_style" 1 17.0 0 0 0 0.0] ["ga_set_text" 1 "a b"]]
+           (after-create :label {} {:markup [:span {} "a " [:span {} "b"]]})))))
+
+(deftest style-tags-draw-their-style
+  (testing "bold, then bold italic: a Typeface style, 3 for both"
+    (is (= [["ga_text_style" 1 17.0 0 0 0 0.0] ["ga_runs_begin" 1 "a bi"]
+            ["ga_run" 2 4 0 1 0.0 0 0] ["ga_run" 3 4 0 3 0.0 0 0] ["ga_runs_end" 1]]
+           (after-create :label {} {:markup [:span {} "a " [:b "b" [:i "i"]]]}))))
+  (testing "a tag over the whole label: bold and italic are the style"
+    (is (= [["ga_text_style" 1 17.0 0 0 3 0.0] ["ga_set_text" 1 "x"]]
+           (after-create :label {} {:markup [:b [:i "x"]]}))))
+  (testing "an underline or strikethrough over the whole label is a span"
+    (is (= [["ga_text_style" 1 17.0 0 0 0 0.0] ["ga_runs_begin" 1 "x"]
+            ["ga_run" 0 1 0 0 0.0 1 1] ["ga_runs_end" 1]]
+           (after-create :label {} {:markup [:u [:s "x"]]}))))
+  (testing "a line the base already draws is not drawn again"
+    (is (= [["ga_run" 0 2 0 0 0.0 1 0]]
+           (named "ga_run" (after-create :label {} {:markup [:u "a" [:u "b"]]}))))))
+
+(deftest a-plain-markup-element-is-named-once
+  (reset! w/warned #{})
+  (let [out (with-out-str (after-create :label {} {:markup [:span {} [:tt "a"] [:tt "b"] [:big "c"]]}))]
+    (is (= 1 (count (re-seq #"element :tt" out))))
+    (is (str/includes? out "element :big draws its text plain")))
+  (is (= "" (with-out-str (after-create :label {} {:markup [:tt "a"]}))) "not again"))
 
 (deftest a-label-is-one-line-unless-it-wraps
   (is (= [["ga_set_lines" 1 1]] (named "ga_set_lines" (recording #(w/create! :label {:label "x"})))))
@@ -162,7 +188,7 @@
 
 (deftest nested-markup-keeps-the-parent-as-the-base
   (is (= [["ga_text_style" 1 17.0 0 0 0 0.0] ["ga_runs_begin" 1 "Hole 3 of 18"]
-          ["ga_run" 0 6 0 1 0.0] ["ga_runs_end" 1]]
+          ["ga_run" 0 6 0 1 0.0 0 0] ["ga_runs_end" 1]]
          (after-create :label {} {:markup [:span {:size "17408"} [:span {:weight "bold"} "Hole 3"] " of 18"]}))
       "\" of 18\" is plain: only the first six units get a bold span"))
 

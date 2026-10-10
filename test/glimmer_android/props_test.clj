@@ -37,9 +37,36 @@
            (p/runs [:span {:size "17408"} [:span {:weight "bold"} "Hole 3"] " of 18"]))))
   (testing "a string is one plain run at the default size"
     (is (= {:text "hi" :runs [{:start 0 :end 2 :size 17.0}]} (p/runs "hi"))))
+  (testing "Pango's style tags style their text"
+    (is (= {:text "bisu"
+            :runs [{:start 0 :end 4 :size 17.0}
+                   {:start 0 :end 1 :size 17.0 :bold true}
+                   {:start 1 :end 2 :size 17.0 :italic true}
+                   {:start 2 :end 3 :size 17.0 :strike true}
+                   {:start 3 :end 4 :size 17.0 :underline true}]}
+           (p/runs [:span {} [:b "b"] [:i "i"] [:s "s"] [:u "u"]]))))
+  (testing "styles nest; at one range the inner run, which has them all, is first"
+    (is (= {:start 0 :end 1 :size 17.0 :bold true :italic true}
+           (first (:runs (p/runs [:b [:i "x"]]))))))
+  (testing "a span's style, strikethrough and underline"
+    (let [r #(first (:runs (p/runs [:span % "x"])))]
+      (is (:italic (r {:style "italic"})))
+      (is (:italic (r {:style "oblique"})))
+      (is (not (:italic (r {:style "normal"}))))
+      (is (:strike (r {:strikethrough "true"})))
+      (is (not (:strike (r {:strikethrough "false"}))))
+      (is (:underline (r {:underline "single"})))
+      (is (:underline (r {:underline "true"})) "glimmer-uikit's word")
+      (is (not (:underline (r {:underline "none"}))))))
+  (testing "an element that styles nothing keeps its text, and is named"
+    (is (= {:text "ab" :runs [{:start 0 :end 2 :size 17.0} {:start 1 :end 2 :size 17.0}] :plain #{:tt}}
+           (p/runs [:span {} "a" [:tt "b"]]))))
   (testing "offsets count UTF-16 units, as Android's spans do"
     (is (= [2 3] ((juxt :start :end) (second (:runs (p/runs [:span {} "😀" [:span {:weight "bold"} "x"]])))))
         "an emoji is two units")))
+
+(deftest bold-and-italic-are-a-typeface-style
+  (is (= [0 1 2 3] (map p/typeface [{} {:bold true} {:italic true} {:bold true :italic true}]))))
 
 (deftest xalign-is-gravity
   (is (= :start (p/side 0)))

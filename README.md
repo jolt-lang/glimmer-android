@@ -32,13 +32,9 @@ Android's UI thread.
 ```
 
 glimmer-android grew inside an app before it was extracted, so its vocabulary is
-what real screens needed, and the same hiccup renders on glimmer-uikit, with
-one exception: in a label's markup, Pango's style tags (`[:b …]`, `[:i …]`,
-`[:s …]`, `[:u …]`) are ignored on Android, which reads only a span's
-attributes. For bold on both, write `[:span {:weight "bold"} …]`; see Markup
-under [Hiccup reference](#hiccup-reference). Components, reactive state and
-reconciliation are documented in glimmer's README. What follows is the
-Android-specific part.
+what real screens needed, and the same hiccup renders on glimmer-uikit.
+Components, reactive state and reconciliation are documented in glimmer's
+README. What follows is the Android-specific part.
 
 ## Requirements
 
@@ -88,18 +84,19 @@ output, and `commit.txt`, the commit it proved.
 
 ### The proofs that have run
 
-The demo proof passed 20 of 20 checks on two arm64 emulators, both API 36, one
-with 4 KB pages and one with 16 KB pages, on Friday 2026-10-09 EDT, with the
-code of this release.
+The demo proof passed 23 of 23 checks on two arm64 emulators, both API 36, one
+with 4 KB pages and one with 16 KB pages, on Saturday 10 October 2026 EDT, with
+the code of this release.
 
 The checks: the label reads back after an `input tap`; the deliberately clipped
 label is logged; the count survives a rotation and a tap after it works;
 `jolt_library_init` ran once and the screen mounted once per Activity; the
 proof swipes the vocabulary's scroll until its fourth button is wholly in view
 and inside it; the checkbutton reads checked after a tap, with the check mark
-only a re-render draws; no prop was unknown and no call failed; and Back, taken
-by the second screen, returns to the first, while a second Back, which nothing
-takes, sends the Activity away.
+only a re-render draws; no prop was unknown and no call failed; the passages,
+wrapped labels in a scroll, show with nothing logged as clipped, and no markup
+element draws plain; and Back, taken by the passages, returns to the first
+screen, while a second Back, which nothing takes, sends the Activity away.
 
 ## Hiccup reference
 
@@ -137,8 +134,8 @@ stack vertically).
   `:margin-right`, and `:safe` (padded by the insets, inside a full-bleed root).
 - Scroll: `:spacing`. Layers: `:background`.
 - Label: `:label` (or `:markup`, below), `:xalign` (below 0.34 the start, above
-  0.66 the end, else the centre, as iOS reads it), `:wrap` (any value wraps;
-  without it a label is one line), `:date` (milliseconds, formatted by the
+  0.66 the end, else the centre, as iOS reads it), `:wrap` (any value wraps,
+  each line taking the words that fit; without it a label is one line), `:date` (milliseconds, formatted by the
   phone's locale, medium style) with `:date-markup` (span attributes for it).
   On a label, `:date` replaces the text.
 - Button: `:label`, `:label-date` (milliseconds, shown as a date before
@@ -161,12 +158,13 @@ Settings, it grows instead of cutting its text off. Every other tag's
 glimmer-uikit and glimmer-gtk use: `[:span {:foreground "#ffffff" :size
 "28672"} "Vocabulary"]`. A span's `:size` (1024ths of a point), `:foreground`,
 `:weight "bold"`, `:font_family` (a name containing "Bold" reads as bold) and
-`:letter_spacing` are read, and spans nest. The first run is the label's style,
-and a later run that differs gets an Android span. Only span attributes are
-read: an element's name styles nothing, so `[:b …]`, `[:i …]`, `[:s …]` and
-`[:u …]` draw their text plain, where glimmer-uikit styles it. Write bold as
-`[:span {:weight "bold"} …]`, which both backends read. Italic, underline and
-strikethrough have no Android form yet, by tag or by attribute.
+`:letter_spacing` are read, with `:style "italic"` (or `"oblique"`),
+`:strikethrough "true"` and `:underline` (any value but `"none"`). Pango's
+`[:b …]`, `[:i …]`, `[:s …]` and `[:u …]` draw bold, italic, struck through
+and underlined, as on glimmer-uikit. Styles nest and add up: `[:b [:i …]]` is
+bold italic. The first run is the label's style, and a later run that differs
+gets an Android span. Any other element, such as `[:tt …]` or `[:big …]`, draws
+its text plain, and the backend names it once.
 
 **An unknown prop is ignored, and said out loud.** A prop that is neither common
 nor in its tag's list does nothing, and the backend prints one line naming the
@@ -218,12 +216,12 @@ Work scheduled by glimmer runs inline, since Jolt runs on the UI thread.
 
 ```clojure
 jolt-lang/glimmer-android {:git/url "https://github.com/jolt-lang/glimmer-android"
-                           :git/tag "v0.1.0"
+                           :git/tag "v0.2.0"
                            :git/sha "<sha>"}
 ```
 
-The sha is the tag's commit: the hash on the `refs/tags/v0.1.0^{}` line that
-`git ls-remote https://github.com/jolt-lang/glimmer-android v0.1.0` prints.
+The sha is the tag's commit: the hash on the `refs/tags/v0.2.0^{}` line that
+`git ls-remote https://github.com/jolt-lang/glimmer-android v0.2.0` prints.
 
 Put it in the alias the app's Android build uses, and in its test alias if
 tests use the fake. Two aliases that pin different commits do not fail: jolt
