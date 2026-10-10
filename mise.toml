@@ -1,0 +1,12 @@
+# Tools this project needs that Homebrew does not pin per project.
+# `mise trust` once per clone; then `java` here is the one below.
+[tools]
+java = "temurin-21"   # the demo's Gradle build: Gradle 9.8 and AGP 9.4
+
+# The Android SDK, for this directory only: no shell profile changes.
+[env]
+ANDROID_HOME = "{{env.HOME}}/Library/Android/sdk"
+_.path = [
+  "{{env.ANDROID_HOME}}/platform-tools",   # adb
+  "{{env.ANDROID_HOME}}/emulator",         # emulator
+]

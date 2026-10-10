@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# jolt pack: the jolt target pack for Android arm64.
+set -euo pipefail
+IFS=$'\n\t'
+
+die() { printf 'pack: %s\n' "$*" >&2; exit 1; }
+
+API=28                                       # Android 9, the oldest this pack targets
+NDK_VERSION=30.0.16248370                    # the demo's ndkVersion, android/demo/build.gradle.kts
+CHEZ_TAG=v10.4.1
+CHEZ_REVISION=e95a7efbafa2cf3bd5343ea542e6bc909a7ab2c4
+TARGET=tarm64le
+CHEZ_SRC=${CHEZ_SRC:-$HOME/dev/ChezScheme-android}
+PACK=${PACK:-$HOME/dev/pack-$TARGET-android-api$API}
+
+[ -f "$PACK/link-libs" ] && { echo "pack: already built: $PACK"; exit 0; }
+
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64) HOST=tarm64osx ;;
+  *) die "built on an Apple Silicon Mac only: $(uname -s)-$(uname -m)" ;;
+esac
+
+: "${ANDROID_HOME:?ANDROID_HOME is not set — run this inside the repository, where mise.toml sets it}"
+BIN="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/darwin-x86_64/bin"
+CC="$BIN/aarch64-linux-android$API-clang"
+[ -x "$CC" ] || die "no $CC — install the NDK: android sdk install ndk/$NDK_VERSION"
+JOBS=$(sysctl -n hw.ncpu)
+
+echo "pack: host $HOST -> $TARGET, API $API, NDK $NDK_VERSION"
+
+# 1. Chez, pinned, in a tree of its own
+if [ ! -d "$CHEZ_SRC/.git" ]; then
+  git clone --depth 1 --branch "$CHEZ_TAG" --recurse-submodules \
+    https://github.com/cisco/ChezScheme.git "$CHEZ_SRC"
+fi
+have=$(git -C "$CHEZ_SRC" rev-parse HEAD)
+[ "$have" = "$CHEZ_REVISION" ] || die "$CHEZ_SRC is at $have, not $CHEZ_TAG ($CHEZ_REVISION)"
+cd "$CHEZ_SRC"
+
+# 2. the host compiler; X11 off, as jolt's CI builds it — the expeditor is never used
+echo "pack: the $HOST host compiler"
+./configure -m="$HOST" --disable-x11 >/dev/null
+make -j"$JOBS" >/dev/null
+
+# 3. the target's boot files and the xpatch that retargets the host compiler
+echo "pack: bootquick for $TARGET"
+make bootquick XM="$TARGET" >/dev/null
+
+# 4a. zlib and lz4 for bionic, outside Chez's tree: zlib's own configure sees
+#     Darwin and archives with Apple's libtool, which writes no libz.a from ELF
+#     objects. CHOST makes it take AR from here.
+echo "pack: zlib and lz4 against bionic, -fPIC"
+DEPS="$CHEZ_SRC/android-deps"
+rm -rf "$DEPS"
+mkdir -p "$DEPS"
+cp -R zlib "$DEPS/zlib"
+cp -R lz4 "$DEPS/lz4"
+(cd "$DEPS/zlib" &&
+   CHOST=aarch64-linux-android CC="$CC" AR="$BIN/llvm-ar" RANLIB="$BIN/llvm-ranlib" \
+   CFLAGS="-fPIC -O2" ./configure --static >/dev/null &&
+   make -j"$JOBS" libz.a >/dev/null)
+make -C "$DEPS/lz4/lib" -j"$JOBS" liblz4.a \
+  CC="$CC" AR="$BIN/llvm-ar" CFLAGS="-fPIC -O2" >/dev/null
+for a in "$DEPS/zlib/libz.a" "$DEPS/lz4/lib/liblz4.a"; do
+  [ -n "$("$BIN/llvm-ar" t "$a" 2>/dev/null)" ] || die "$a is missing or empty"
+done
+
+# 4b. the kernel against bionic, linked to those: this is what makes the pack Android's
+echo "pack: the $TARGET kernel against bionic, -fPIC"
+rm -rf "$TARGET"
+./configure --cross --force -m="$TARGET" \
+  --disable-auto-flags --disable-curses --disable-x11 --disable-iconv \
+  CFLAGS="-fPIC -O2 -I$DEPS/zlib -I$DEPS/lz4/lib" \
+  CC="$CC" AR="$BIN/llvm-ar" RANLIB="$BIN/llvm-ranlib" STRIP="$BIN/llvm-strip" \
+  ZLIB="$DEPS/zlib/libz.a" LZ4="$DEPS/lz4/lib/liblz4.a" \
+  LIBS="-lm -ldl" CC_FOR_BUILD=cc >/dev/null
+make -j"$JOBS" >/dev/null
+
+# 5. the pack; link-libs last, since it is what says the pack is whole
+boot="$TARGET/boot/$TARGET"
+for f in "$boot/petite.boot" "$boot/scheme.boot" "$boot/libkernel.a" "$boot/scheme.h" \
+         "xc-$TARGET/s/xpatch"; do
+  [ -e "$f" ] || die "the Chez build did not produce $CHEZ_SRC/$f"
+done
+rm -rf "$PACK"
+mkdir -p "$PACK/lib"
+cp "$boot/petite.boot" "$boot/scheme.boot" "$boot/libkernel.a" "$boot/scheme.h" "$PACK/"
+cp "xc-$TARGET/s/xpatch" "$PACK/xpatch"
+cp "$DEPS/lz4/lib/liblz4.a" "$DEPS/zlib/libz.a" "$PACK/lib/"
+
+# 6. read the machine out of the kernel rather than trusting the flags
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+# read into variables first: under pipefail, grep -q and grep -m1 stop reading
+# and the writer dies of the closed pipe, which reads as failure
+members=$("$BIN/llvm-ar" t "$PACK/libkernel.a")
+member=$(grep '\.o$' <<<"$members" | head -n 1)
+(cd "$tmp" && "$BIN/llvm-ar" x "$PACK/libkernel.a" "$member")
+header=$("$BIN/llvm-readelf" -h "$tmp/$member")
+grep -q 'Machine: *AArch64' <<<"$header" || die "libkernel.a ($member) is not AArch64"
+
+printf '%s\n' '-llz4 -lz -lm -ldl' > "$PACK/link-libs"
+echo "pack: wrote $PACK (libkernel.a is AArch64, API $API, -fPIC)"

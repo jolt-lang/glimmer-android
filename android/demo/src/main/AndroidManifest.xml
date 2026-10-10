@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- glimmer-android's demo. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- no action bar: a full-bleed screen reaches the status bar, so :safe has a bar to clear -->
+  <!-- enableOnBackInvokedCallback: without it Android 13 and up never call the
+       callback glimmer-android registers while a screen takes Back -->
+  <application android:label="glimmer demo"
+               android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+               android:enableOnBackInvokedCallback="true">
+    <activity android:name="glimmer.android.GlimmerActivity" android:exported="true">
+      <meta-data android:name="glimmer.library" android:value="glimmer_demo" />
+      <meta-data android:name="glimmer.entry" android:value="glimmer_demo_main" />
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

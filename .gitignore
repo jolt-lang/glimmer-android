@@ -1,0 +1,33 @@
+# Ignore everything. Allow only the files this project tracks.
+# Pattern: Alex Pliutau, ".gitignore everything by default",
+#   https://pliutau.com/git-ignore-everything-by-default/
+#
+# Git cannot re-include a file if a parent directory is excluded
+# (gitignore(5), its NOTES section), so every
+# directory is allowed back first. A directory then holds nothing
+# tracked unless a line below names its files.
+*
+!*/
+
+!/.gitignore
+!/CHANGELOG.md
+!/LICENSE
+!/README.md
+!/deps.edn
+!/mise.toml
+
+# CI's lint reads it; the cache and imports beside it stay out
+!/.clj-kondo/config.edn
+
+!/.github/**
+!/src/**
+!/test/**
+!/examples/**
+!/scripts/*
+
+# the library's Java and C, and the demo's Gradle project without its
+# build products (.gradle/, build/, .cxx/, jniLibs/, assets/, local.properties)
+!/android/glimmer/src/**
+!/android/demo/build.gradle.kts
+!/android/demo/settings.gradle.kts
+!/android/demo/src/main/AndroidManifest.xml

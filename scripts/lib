@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# jolt lib: a namespace as an Android shared library, then read back for
+#   three checks: it exports jolt's entry points, needs only the libraries
+#   Android gives an app, and aligns every LOAD segment to 16 KB.
+set -euo pipefail
+IFS=$'\n\t'
+
+die() { printf 'lib: %s\n' "$*" >&2; exit 1; }
+
+API=28
+NDK_VERSION=30.0.16248370
+TARGET=tarm64le
+PACK=${PACK:-$HOME/dev/pack-$TARGET-android-api$API}
+NS=${NS:-glimmer-android.demo}
+OUT=${OUT:-android/build/libglimmer_demo.so}
+
+cd "$(git rev-parse --show-toplevel)"
+: "${ANDROID_HOME:?ANDROID_HOME is not set — run this inside the repository, where mise.toml sets it}"
+[ -f "$PACK/link-libs" ] || die "no target pack at $PACK — run: jolt pack"
+BIN="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/darwin-x86_64/bin"
+CC="$BIN/aarch64-linux-android$API-clang"
+[ -x "$CC" ] || die "no $CC"
+
+mkdir -p android/build
+# the alias that puts NS on the path: examples/ for the demo
+ALIAS=${ALIAS:-:examples}
+JOLT_TARGET_CC="$CC" JOLT_TARGET_ARCH_FLAG="" \
+  jolt "-A$ALIAS" build --library -m "$NS" -o "$OUT" --target "$TARGET" --target-pack "$PACK"
+rm -rf "$OUT.build"
+
+echo "lib: $(file -b "$OUT" | cut -d, -f1-2)"
+
+syms=$("$BIN/llvm-readelf" --dyn-syms "$OUT")
+for s in jolt_library_init jolt_lookup; do
+  grep -q " $s\$" <<<"$syms" || die "$OUT does not export $s"
+done
+echo "lib: exports jolt_library_init and jolt_lookup"
+
+needed=$("$BIN/llvm-readelf" -d "$OUT" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p')
+for n in $needed; do
+  case "$n" in
+    libc.so|libm.so|libdl.so|liblog.so) ;;
+    *) die "$OUT needs $n, which Android does not give an app" ;;
+  esac
+done
+echo "lib: needs only $(tr '\n' ' ' <<<"$needed")"
+
+aligns=$("$BIN/llvm-readelf" -lW "$OUT" | awk '$1 == "LOAD" {print $NF}')
+for a in $aligns; do
+  [ $((a)) -ge 16384 ] || die "$OUT has a LOAD segment aligned to $a, under 16 KB"
+done
+echo "lib: every LOAD segment aligned to 16 KB or more ($(tr '\n' ' ' <<<"$aligns"))"
+echo "lib: wrote $OUT ($(stat -f %z "$OUT") bytes)"

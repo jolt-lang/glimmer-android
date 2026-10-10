@@ -1,0 +1,9 @@
+{:lint-as {jolt.ffi/defcfn              clj-kondo.lint-as/def-catch-all
+           jolt.ffi/with-c-string       clojure.core/let
+           jolt.ffi/with-c-string-array clojure.core/let
+           jolt.ffi/with-alloc          clojure.core/let
+           jolt.ffi/with-out            clojure.core/let
+           jolt.ffi/with-layout         clojure.core/let}
+ ;; jolt provides alloc, free, read, write, null and null? at run time, so
+ ;; clj-kondo finds no defn for them and reports each use as unresolved.
+ :linters {:unresolved-var {:exclude [jolt.ffi]}}}

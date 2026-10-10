@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# jolt proof DIR: the demo on an emulator, driven by taps and read
+#   back through uiautomator; a screenshot at each step into DIR.
+#   AVD=<name> picks the emulator. The helpers, and the boot on console
+#   port 5580, are in emulator-lib.
+set -euo pipefail
+IFS=$'\n\t'
+
+TOOL=proof
+AVD=${AVD:-Medium_Phone_API_36.0}
+PKG=dev.staton.glimmer.demo
+APK=android/demo/build/outputs/apk/debug/glimmer-demo-debug.apk
+out=${1:?usage: jolt proof DIR}
+
+# shellcheck source=scripts/emulator-lib
+. "$(dirname "$0")/emulator-lib"
+
+cd "$(git rev-parse --show-toplevel)"
+[ -f "$APK" ] || die "no $APK — run: jolt demo"
+mkdir -p "$out"
+if [ -n "$(ls -A "$out")" ]; then die "$out is not empty; give a new directory"; fi
+boot
+
+# 1. launch
+a shell am start -W -n "$PKG/glimmer.android.GlimmerActivity" >/dev/null
+wait_for_log "glimmer-android: mounted" 30 || die "the screen never mounted; see adb logcat -s glimmer-android"
+sleep 1; shot 1-launch
+a shell dumpsys window displays | grep "mRotation=0 " >/dev/null \
+  || die "the display turned by itself after the launch; see $out/1-launch.png"
+check "the label says Tapped 0 times" has "Tapped 0 times"
+
+# 2. tap the button, by input tap at its centre
+IFS=" " read -r x y <<<"$(centre Tap)"
+[ -n "${x:-}" ] || die "no Tap button in the tree"
+a shell input tap "$x" "$y"
+sleep 1; shot 2-tapped
+check "input tap reached the button: Tapped 1 times" has "Tapped 1 times"
+
+# 3. the label made to clip is logged as clipped
+check "the clipped label is logged" wait_for_log 'clipped: "This label is far too long for its box"' 5
+
+# 4. rotate: the Activity is rebuilt, the count survives, and a tap still works.
+#    Android documents destroy, then create
+#    (developer.android.com/guide/topics/resources/runtime-changes), but
+#    C does not rely on it: a start that finds an older Activity tears its
+#    screen down first, and a late stop from it is ignored.
+stops() { a logcat -d -s "glimmer-android:*" | grep -c "glimmer-android: stopped" || true; }
+before=$(stops)
+rotate 1 || die "the display did not turn to landscape"
+for _ in $(seq 1 15); do [ "$(stops)" -gt "$before" ] && break; sleep 1; done
+[ "$(stops)" -gt "$before" ] || die "the old screen was never stopped"
+sleep 2; shot 3-rotated
+check "the count survived the rotation: Tapped 1 times" has "Tapped 1 times"
+IFS=" " read -r x y <<<"$(centre Tap)"
+a shell input tap "$x" "$y"
+sleep 1; shot 4-tapped-again
+check "a tap after the rotation works: Tapped 2 times" has "Tapped 2 times"
+
+# 5. once per process, and what it cost
+log=$(a logcat -d -s "glimmer-android:*")
+inits=$(grep -c "jolt_library_init=0" <<<"$log" || true)
+mounts=$(grep -c "glimmer-android: mounted" <<<"$log" || true)
+check "jolt_library_init ran once ($inits)" test "$inits" = 1
+check "the screen mounted twice, once per Activity ($mounts)" test "$mounts" = 2
+grep -E "jolt_library_init=|entry ran in" <<<"$log" | sed 's/^/proof: /'
+
+# 6. the vocabulary: every tag on one screen, in portrait so the
+#    status bar is above it. The turn rebuilds the Activity; the count
+#    is already taken.
+before=$(stops)
+rotate 0 || die "the display did not turn back to portrait"
+for _ in $(seq 1 15); do [ "$(stops)" -gt "$before" ] && break; sleep 1; done
+sleep 2; shot 5-portrait
+IFS=" " read -r x y <<<"$(centre Next)"
+[ -n "${x:-}" ] || die "no Next button in the tree"
+a shell input tap "$x" "$y"
+sleep 2; shot 6-vocabulary
+# The scroll: four 48 dp buttons in 160 dp. uiautomator clips a node's
+# bounds to what is in view, so a button partly scrolled out is shorter
+# than one wholly in view.
+tue='text="[^"]*Tuesday"'
+thu='text="[^"]*Thursday"'
+tall() {   # the height in view of the first node matching $1, or 0
+  local y1 y2
+  IFS=" " read -r _ y1 _ y2 <<<"$(bounds "$1")"
+  echo $(( ${y2:-0} - ${y1:-0} ))
+}
+full=$(tall "$tue")
+check "Tuesday's button is wholly in view ($full px)" test "$full" -gt 0
+check "the fourth button is not wholly in view before a swipe ($(tall "$thu") px)" test "$(tall "$thu")" -lt "$full"
+IFS=" " read -r sx1 sy1 sx2 sy2 <<<"$(bounds 'class="android.widget.ScrollView"')"
+[ -n "${sy2:-}" ] || die "no ScrollView in the tree"
+a shell input swipe $(( (sx1 + sx2) / 2 )) $(( sy2 - 20 )) $(( (sx1 + sx2) / 2 )) $(( sy1 + 20 )) 400
+sleep 1; shot 7-scrolled
+check "after the swipe the fourth button is wholly in view ($(tall "$thu") px)" test "$(tall "$thu")" -eq "$full"
+inside() {   # the fourth button lies within the scroll's bounds
+  local y1 y2
+  IFS=" " read -r _ y1 _ y2 <<<"$(bounds "$thu")"
+  [ "$y1" -ge "$sy1" ] && [ "$y2" -le "$sy2" ]
+}
+check "and inside the scroll, [$sy1, $sy2]" inside
+mistake='content-desc="Example mistake"'
+# whether the CheckBox described Example mistake reads checked="$1"
+checked_is() {
+  dump | tr '>' '\n' | grep 'class="android.widget.CheckBox"' | grep "$mistake" \
+    | grep "checked=\"$1\"" >/dev/null
+}
+check "a CheckBox described Example mistake, checked=false" checked_is false
+IFS=" " read -r x y <<<"$(centre_of "$mistake")"
+[ -n "${x:-}" ] || die "no Example mistake box in the tree"
+a shell input tap "$x" "$y"
+sleep 1; shot 8-ticked
+# checked alone could be Android's own toggle; the ✓ is set only by a re-render
+ticked() { checked_is true && has "✓"; }
+check "input tap ticked it: checked=true, and the re-render drew ✓" ticked
+log=$(a logcat -d -s "glimmer-android:*")
+check "no prop was unknown" test -z "$(grep "unknown prop" <<<"$log" || true)"
+check "no call failed or threw" test -z "$(grep -E " failed| threw" <<<"$log" || true)"
+grep "clipped:" <<<"$log" | sed 's/.*clipped:/clipped:/' | sort | uniq -c | sed 's/^ */proof: /' || true
+# where the vocabulary's title sits: below the status bar by the safe inset
+dump | tr '>' '\n' | grep 'text="Vocabulary"' | sed -n 's/.*\(bounds="[^"]*"\).*/proof: the title at \1/p' || true
+
+# 7. Back: the vocabulary takes it, so Back reaches the callback and
+#    shows the first screen; there nothing takes it, so a second Back is
+#    Android's own, and the Activity leaves the foreground.
+backs() { a logcat -d -s "glimmer-android:*" | grep -c "glimmer-android: back[[:space:]]*$" || true; }
+a shell input keyevent 4
+sleep 2; shot 9-back
+check "input keyevent 4 reached the callback: the first screen's Tap is back" has "Tap"
+check "C logged one Back ($(backs))" test "$(backs)" = 1
+a shell input keyevent 4
+sleep 2; shot 10-back-again
+gone() { ! a shell dumpsys window | grep mCurrentFocus | grep "$PKG" >/dev/null; }
+check "a second Back, which nothing takes, sent the Activity away" gone
+check "and did not reach the callback ($(backs))" test "$(backs)" = 1
+log=$(a logcat -d -s "glimmer-android:*")
+check "no call failed or threw after Back" test -z "$(grep -E " failed| threw" <<<"$log" || true)"
+a logcat -d > "$out/logcat.txt"
+echo "proof: all checks passed; pictures and logcat in $out"

@@ -1,0 +1,41 @@
+{;; jolt.ffi/write swapped its value and offset arguments in 0.8.0, and an
+ ;; older runtime writes to the wrong place rather than failing.
+ ;; glimmer-uikit declares the same floor; refuse anything older.
+ :jolt/min-version "0.8.0"
+
+ :paths ["src"]
+
+ ;; glimmer-android's C half: bound by name on Android, absent everywhere
+ ;; else, so optional. defcfn binds lazily; only a call needs it. Both keys
+ ;; name the Android file: jolt build bakes in the candidates for the
+ ;; machine it builds on, not the target, so a Mac building for Android
+ ;; reads :darwin.
+ :jolt/native [{:name "glimmer-android"
+                :darwin ["libglimmer_android.so"]
+                :linux  ["libglimmer_android.so"]
+                :optional true}]
+
+ ;; glimmer owns the reactive core; this library supplies Android's views,
+ ;; the prop and event wiring and the app loop. An app that pins glimmer
+ ;; itself wins over this pin: jolt's deps walk is breadth-first.
+ :deps {jolt-lang/glimmer {:git/url "https://github.com/jolt-lang/glimmer"
+                           :git/tag "v0.1.1"
+                           :git/sha "b62d6a8bf36db31249135ef2247a10ca6a0892e1"}}
+
+ ;; The demo's test needs the demo, so :test puts examples/ on the path too.
+ ;; An Android example cannot be `jolt run`; it is built into a shared
+ ;; library. `jolt -A:examples build` puts examples/ on the source roots.
+ :aliases {:test     {:extra-paths ["test" "examples"]
+                      :main-opts   ["-m" "glimmer-android.test-runner"]}
+           :examples {:extra-paths ["examples"]}}
+
+ ;; pack builds the jolt target pack once; lib builds NS (default
+ ;; glimmer-android.demo) as an Android shared library; demo builds the
+ ;; demo's APK; proof DIR runs it on an emulator.
+ :tasks {test  "jolt -M:test"
+         lint  "clj-kondo --lint src test examples --fail-level warning"
+         pack  "bash scripts/pack"
+         lib   "bash scripts/lib"
+         demo  "bash scripts/demo"
+         ;; a form, so the directory reaches the script
+         proof (apply shell "bash" "scripts/proof" *command-line-args*)}}

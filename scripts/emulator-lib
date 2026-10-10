@@ -1,0 +1,121 @@
+# shellcheck shell=bash
+# The emulator helpers glimmer-android's proofs share. The script that
+#   sources this sets TOOL, AVD, PKG, APK and out, then calls boot.
+
+# what the sourcing script must set
+: "${TOOL:?}" "${AVD:?}" "${PKG:?}" "${APK:?}" "${out:?}"
+
+PORT=5580
+SERIAL=emulator-$PORT
+
+die() { printf '%s: %s\n' "$TOOL" "$*" >&2; exit 1; }
+
+a() { adb -s "$SERIAL" "$@"; }
+
+# Turn the display to $1 (0 portrait, 1 landscape) through WindowManager,
+# and wait until it has turned and the setting says so.
+rotate() {
+  a shell cmd window user-rotation lock "$1" >/dev/null
+  for _ in $(seq 1 20); do
+    a shell dumpsys window displays | grep "mRotation=$1 " >/dev/null \
+      && [ "$(a shell settings get system user_rotation | tr -d '\r')" = "$1" ] && return 0
+    sleep 0.5
+  done
+  return 1
+}
+# A rotation left in settings outlives the emulator in its userdata, and
+# WindowManager applies it late in a boot, after sys.boot_completed can
+# read 1. So wait until WindowManager agrees with the stored setting
+# before turning: a turn made earlier is undone at the launch.
+settled() {
+  local w r
+  for _ in $(seq 1 30); do
+    w=$(a shell cmd window user-rotation | tr -d '\r')
+    r=$(a shell settings get system user_rotation | tr -d '\r')
+    [ "$w" = "lock $r" ] && return 0
+    # nothing stored to apply: a clean userdata reads "free" and 0
+    [ "$w" = free ] && [ "$r" = 0 ] && return 0
+    sleep 1
+  done
+  return 1
+}
+# A failed run keeps its logcat too: it is the only record of why. The
+# trap turns the display back whatever happened; before it kills an
+# emulator it started, it gives system_server time to write the setting
+# out, because a kill at once loses it.
+started=""
+cleanup() {
+  [ -f "$out/logcat.txt" ] || a logcat -d > "$out/logcat.txt" 2>/dev/null || true
+  rotate 0 >/dev/null 2>&1 || true
+  if [ -n "$started" ]; then sleep 5; a emu kill >/dev/null 2>&1 || true; fi
+}
+on_port() { adb devices | grep "^${SERIAL}[[:space:]]" >/dev/null; }
+
+# Boot $AVD on the port, or reuse it if it is up; install $APK, turn to
+# portrait, and clear logcat.
+boot() {
+  local t0 running deadline
+  t0=$(date +%s)
+  if on_port; then
+    # || true: a failed query must reach the refusal below, not end the script
+    running=$(a emu avd name 2>/dev/null | head -1 | tr -d '\r' || true)
+    if [ "$running" != "$AVD" ]; then
+      # another emulator, perhaps still shutting down: give it 60 s to go
+      for _ in $(seq 1 30); do on_port || break; sleep 2; done
+      on_port && die "$SERIAL is running ${running:-an unknown AVD}, not $AVD; stop it or set AVD=$running"
+    fi
+  fi
+  if ! on_port; then
+    emulator -avd "$AVD" -port "$PORT" -no-window -no-audio -no-boot-anim -no-snapshot-save >/dev/null 2>&1 &
+    started=$!
+  fi
+  trap cleanup EXIT
+  a wait-for-device
+  for _ in $(seq 1 120); do
+    [ "$(a shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break
+    sleep 2
+  done
+  [ "$(a shell getprop sys.boot_completed | tr -d '\r')" = 1 ] || die "the emulator did not finish booting"
+  # boot_completed comes before the system user is unlocked, and an install
+  # in that gap is force-stopped at the unlock
+  # 30 s by the clock: each poll's adb call takes its own time
+  deadline=$(( $(date +%s) + 30 ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    [ "$(a shell am get-started-user-state 0 2>/dev/null | tr -d '\r')" = RUNNING_UNLOCKED ] && break
+    sleep 0.5
+  done
+  [ "$(a shell am get-started-user-state 0 2>/dev/null | tr -d '\r')" = RUNNING_UNLOCKED ] || die "user 0 was not unlocked 30 s after the boot"
+  echo "$TOOL: $AVD, API $(a shell getprop ro.build.version.sdk | tr -d '\r'), page size $(a shell getconf PAGESIZE | tr -d '\r'), booted in $(( $(date +%s) - t0 ))s"
+
+  a install -r "$APK" >/dev/null
+  settled || die "WindowManager never applied the stored rotation"
+  rotate 0 || die "the display did not turn to portrait"
+  # A fresh boot's system apps fill the default 256 KiB buffer in seconds,
+  # which would rotate the init line out before a proof reads it.
+  a logcat -G 16M
+  a logcat -c
+}
+
+shot() { a exec-out screencap -p > "$out/$1.png"; }
+dump() { a shell uiautomator dump /sdcard/ui.xml >/dev/null && a exec-out cat /sdcard/ui.xml; }
+has() { dump | grep "text=\"$1\"" >/dev/null; }
+# The bounds of the first node matching $1 (name="value"), as "x1 y1 x2 y2".
+bounds() {
+  dump | tr '>' '\n' | grep "$1" | head -1 \
+    | sed -n 's/.*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]".*/\1 \2 \3 \4/p'
+}
+# The centre of the first node matching $1, as "x y".
+centre_of() { bounds "$1" | awk '{ printf "%d %d", ($1 + $3) / 2, ($2 + $4) / 2 }'; }
+# The centre of the node whose text is $1.
+centre() { centre_of "text=\"$1\""; }
+wait_for_log() {   # pattern, seconds
+  for _ in $(seq 1 "$2"); do
+    a logcat -d -s "glimmer-android:*" | grep "$1" >/dev/null && return 0
+    sleep 1
+  done
+  return 1
+}
+check() {   # what, then the command that must succeed
+  local what=$1; shift
+  if "$@"; then echo "$TOOL: ok — $what"; else die "failed — $what"; fi
+}
