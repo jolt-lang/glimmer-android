@@ -50,27 +50,29 @@ Android-specific part.
 - **The jolt target pack for Android arm64.** `jolt pack` builds it once, from
   Chez Scheme v10.4.1, into `~/dev/pack-tarm64le-android-api28` (or wherever
   `PACK` points). It builds on an Apple Silicon Mac only.
-- **The Android NDK, r30 (30.0.16248370),** and the SDK's CMake 4.1.2, under
-  `$ANDROID_HOME`: `sdkmanager --install "ndk;30.0.16248370"` installs the NDK.
-- **[mise](https://mise.jdx.dev).** `mise.toml` sets the JDK the demo's Gradle
-  build runs on (Temurin 21) and `ANDROID_HOME` (`~/Library/Android/sdk`), for
-  this directory only. Run `mise trust` once per clone, then run the Android
-  tasks under `mise exec --`.
+- **The Android SDK, with `ANDROID_HOME` pointing at it** (on a Mac, usually
+  `~/Library/Android/sdk`). It needs platform-tools, the emulator, the NDK r30
+  (30.0.16248370) and CMake 4.1.2: `sdkmanager --install "ndk;30.0.16248370"`
+  installs the NDK. The scripts refuse to run without `ANDROID_HOME`, and put
+  its `platform-tools` and `emulator` on `PATH` themselves, for `adb` and
+  `emulator`.
+- For the demo: **a JDK 21 or newer**, which Gradle 9.8 and AGP 9.4 need:
+  `JAVA_HOME`'s, or else `java` on `PATH`. `scripts/demo` refuses an older one.
 - For the demo: ImageMagick (`magick`) draws its one image, and `scripts/demo`
   fetches Gradle 9.8.0 itself into `~/.cache/glimmer-android` (or `CACHE`),
   checked against Gradle's published SHA-256.
 - For the proof: an arm64 API 36 emulator (`Medium_Phone_API_36.0` by default;
-  `AVD` names another) and `adb`.
+  `AVD` names another).
 
 ## Running
 
 ```sh
 jolt test                        # unit and conformance tests, against the fake C half, no device
 jolt lint                        # clj-kondo over src, test and examples
-mise exec -- jolt pack           # the jolt target pack, once
-mise exec -- jolt demo           # the demo: its Jolt library, then the APK, with the Java and C
-mise exec -- jolt proof DIR      # the demo on an emulator, a screenshot per step into DIR
-AVD=<name> mise exec -- jolt proof DIR   # the same on another emulator
+jolt pack                        # the jolt target pack, once
+jolt demo                        # the demo: its Jolt library, then the APK, with the Java and C
+jolt proof DIR                   # the demo on an emulator, a screenshot per step into DIR
+AVD=<name> jolt proof DIR        # the same on another emulator
 ```
 
 `jolt lib` builds a namespace as an Android shared library (`NS`, default
@@ -340,6 +342,9 @@ entry.
 
 - The sourcing script sets `TOOL` (the name its messages print), `AVD`, `PKG`,
   `APK` and `out` (its directory for pictures and logcat) first.
+- The library needs `ANDROID_HOME`, and dies naming it when it is unset or not
+  a directory. It puts `$ANDROID_HOME/platform-tools` and
+  `$ANDROID_HOME/emulator` at the front of the sourcing script's `PATH`.
 - The library sets `PORT` (5580) and `SERIAL` (`emulator-5580`), and writes
   `logcat.txt` into `out`, and `emulator.txt`, the emulator's own output, when
   it boots one. Every `adb` call names the emulator by `SERIAL`, so

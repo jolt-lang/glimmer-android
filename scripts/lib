@@ -15,7 +15,10 @@ NS=${NS:-glimmer-android.demo}
 OUT=${OUT:-build/libglimmer_demo.so}
 
 cd "$(git rev-parse --show-toplevel)"
-: "${ANDROID_HOME:?ANDROID_HOME is not set — run this inside the repository, where mise.toml sets it}"
+# the Android SDK, and adb and the emulator from its platform-tools and emulator
+[ -n "${ANDROID_HOME:-}" ] || die "ANDROID_HOME is not set; point it at the Android SDK, such as ~/Library/Android/sdk"
+[ -d "$ANDROID_HOME" ] || die "ANDROID_HOME is $ANDROID_HOME, which is not a directory; point it at the Android SDK"
+PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 [ -f "$PACK/link-libs" ] || die "no target pack at $PACK — run: jolt pack"
 BIN="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/darwin-x86_64/bin"
 CC="$BIN/aarch64-linux-android$API-clang"

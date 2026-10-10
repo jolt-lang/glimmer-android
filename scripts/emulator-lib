@@ -10,6 +10,11 @@ SERIAL=emulator-$PORT
 
 die() { printf '%s: %s\n' "$TOOL" "$*" >&2; exit 1; }
 
+# the Android SDK, and adb and the emulator from its platform-tools and emulator
+[ -n "${ANDROID_HOME:-}" ] || die "ANDROID_HOME is not set; point it at the Android SDK, such as ~/Library/Android/sdk"
+[ -d "$ANDROID_HOME" ] || die "ANDROID_HOME is $ANDROID_HOME, which is not a directory; point it at the Android SDK"
+PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+
 a() { adb -s "$SERIAL" "$@"; }
 
 # Turn the display to $1 (0 portrait, 1 landscape) through WindowManager,
