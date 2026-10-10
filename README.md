@@ -328,7 +328,8 @@ entry.
 - The sourcing script sets `TOOL` (the name its messages print), `AVD`, `PKG`,
   `APK` and `out` (its directory for pictures and logcat) first.
 - The library sets `PORT` (5580) and `SERIAL` (`emulator-5580`), and writes
-  `logcat.txt` into `out`. Every `adb` call names the emulator by `SERIAL`, so
+  `logcat.txt` into `out`, and `emulator.txt`, the emulator's own output, when
+  it boots one. Every `adb` call names the emulator by `SERIAL`, so
   another device on adb's default port is never touched.
 - It provides `die`, `a`, `on_port`, `boot`, `rotate`, `settled`, `cleanup`,
   `shot`, `dump`, `has`, `bounds`, `centre_of`, `centre`, `wait_for_log` and
@@ -340,14 +341,17 @@ What they do:
 
 - `boot` boots `$AVD` on the port, or reuses it if it is up. Another AVD on the
   port is given 60 s to leave, perhaps still shutting down, and then refused.
-  It waits for the boot and for user 0 to reach `RUNNING_UNLOCKED`
+  An `$AVD` that `emulator -list-avds` does not list is refused before a boot,
+  with the list. An emulator that exits before it reaches the port, or has not
+  reached it in 60 s, is refused, naming `emulator.txt`. It waits for the boot and for user 0 to reach `RUNNING_UNLOCKED`
   (Android force-stops an app installed before then), installs `$APK`, waits
   for WindowManager to apply any stored rotation, turns to portrait, and clears
   logcat with a 16 MB buffer.
 - `cleanup` saves logcat, unless the script already did, and turns back to
   portrait. Before it kills an emulator it booted, it waits 5 s and syncs: a
   setting reaches disk up to 2 s after it changes, and `emu kill` flushes
-  nothing, so a rotation could outlive the run.
+  nothing, so a rotation could outlive the run. An emulator it booted that
+  never reached the port is killed by its pid.
 - `a` is `adb -s $SERIAL`. `rotate N` turns the display to N (0 portrait, 1
   landscape) and waits until it has. `settled` waits for WindowManager to agree
   with the stored rotation. `on_port` says whether an emulator is on the port.

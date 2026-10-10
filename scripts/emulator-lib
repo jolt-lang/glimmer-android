@@ -43,15 +43,21 @@ settled() {
 # trap turns the display back whatever happened. Before it kills an
 # emulator it started, it waits and syncs: a setting reaches disk up to
 # 2 s after it changes, and emu kill flushes nothing, so a kill at once
-# can lose the rotation and the next boot starts turned.
+# can lose the rotation and the next boot starts turned. An emulator it
+# started that never reached the port has nothing to save, and is killed
+# by its pid.
 started=""
 cleanup() {
-  [ -f "$out/logcat.txt" ] || a logcat -d > "$out/logcat.txt" 2>/dev/null || true
-  rotate 0 >/dev/null 2>&1 || true
-  if [ -n "$started" ]; then
-    sleep 5
-    a shell sync >/dev/null 2>&1 || true
-    a emu kill >/dev/null 2>&1 || true
+  if on_port; then
+    [ -f "$out/logcat.txt" ] || a logcat -d > "$out/logcat.txt" 2>/dev/null || true
+    rotate 0 >/dev/null 2>&1 || true
+    if [ -n "$started" ]; then
+      sleep 5
+      a shell sync >/dev/null 2>&1 || true
+      a emu kill >/dev/null 2>&1 || true
+    fi
+  elif [ -n "$started" ]; then
+    kill "$started" 2>/dev/null || true
   fi
 }
 on_port() { adb devices | grep "^${SERIAL}[[:space:]]" >/dev/null; }
@@ -59,7 +65,7 @@ on_port() { adb devices | grep "^${SERIAL}[[:space:]]" >/dev/null; }
 # Boot $AVD on the port, or reuse it if it is up; install $APK, turn to
 # portrait, and clear logcat.
 boot() {
-  local t0 running deadline
+  local t0 running deadline avds
   t0=$(date +%s)
   if on_port; then
     # || true: a failed query must reach the refusal below, not end the script
@@ -71,10 +77,27 @@ boot() {
     fi
   fi
   if ! on_port; then
-    emulator -avd "$AVD" -port "$PORT" -no-window -no-audio -no-boot-anim -no-snapshot-save >/dev/null 2>&1 &
+    # a missing AVD makes the emulator exit at once, and wait-for-device
+    # would then wait for ever: refuse it here, naming the ones there are
+    avds=$(emulator -list-avds 2>/dev/null || true)
+    if ! grep -qx "$AVD" <<<"$avds"; then
+      [ -n "$avds" ] || die "no AVD named $AVD, and emulator -list-avds lists none"
+      die "no AVD named $AVD; emulator -list-avds lists:"$'\n'"  ${avds//$'\n'/$'\n'  }"
+    fi
+    emulator -avd "$AVD" -port "$PORT" -no-window -no-audio -no-boot-anim -no-snapshot-save >"$out/emulator.txt" 2>&1 &
     started=$!
   fi
   trap cleanup EXIT
+  # an emulator that exits before it reaches the port would leave
+  # wait-for-device hanging, so watch its pid until the port answers
+  if [ -n "$started" ]; then
+    for _ in $(seq 1 60); do
+      on_port && break
+      kill -0 "$started" 2>/dev/null || die "the emulator exited before it reached $SERIAL; see $out/emulator.txt"
+      sleep 1
+    done
+    on_port || die "nothing on $SERIAL 60 s after the emulator started; see $out/emulator.txt"
+  fi
   a wait-for-device
   for _ in $(seq 1 120); do
     [ "$(a shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break

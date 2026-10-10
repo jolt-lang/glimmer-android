@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `version` and `open-url!`, on the Java Activity and C half under `android/`.
 - `glimmer-android.fake`, a fake of the C half for testing an app's screens
   without a device.
+- `scripts/emulator-lib`, the emulator helpers an app's proof sources; its
+  contract is in the README.
 
 ### Fixed
 
