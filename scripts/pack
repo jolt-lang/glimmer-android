@@ -23,7 +23,7 @@ esac
 : "${ANDROID_HOME:?ANDROID_HOME is not set — run this inside the repository, where mise.toml sets it}"
 BIN="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/darwin-x86_64/bin"
 CC="$BIN/aarch64-linux-android$API-clang"
-[ -x "$CC" ] || die "no $CC — install the NDK: android sdk install ndk/$NDK_VERSION"
+[ -x "$CC" ] || die "no $CC — install the NDK: sdkmanager --install \"ndk;$NDK_VERSION\" (or, with Google's Android CLI, android sdk install ndk/$NDK_VERSION)"
 JOBS=$(sysctl -n hw.ncpu)
 
 echo "pack: host $HOST -> $TARGET, API $API, NDK $NDK_VERSION"

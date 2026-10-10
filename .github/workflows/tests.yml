@@ -20,7 +20,7 @@ jobs:
           set -euo pipefail
           # clj-kondo's install script, as its doc/install.md gives it, pinned
           # to the version the lint was last clean on
-          curl -sLO https://raw.githubusercontent.com/clj-kondo/clj-kondo/master/script/install-clj-kondo
+          curl -fsSLO https://raw.githubusercontent.com/clj-kondo/clj-kondo/master/script/install-clj-kondo
           chmod +x install-clj-kondo
           mkdir -p "$HOME/.local/bin"
           ./install-clj-kondo --dir "$HOME/.local/bin" --version 2026.08.04

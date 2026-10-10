@@ -44,17 +44,14 @@ Android-specific part.
 
 - **jolt 0.8.0 or newer.** `jolt.ffi/write` changed its argument order in
   0.8.0, and an older runtime writes to the wrong place rather than failing, so
-  `deps.edn` declares the floor. The host tests and lint need nothing else but
-  clj-kondo, and run on Linux too.
+  `deps.edn` declares the floor. This release was tested on jolt 0.8.19 and
+  0.8.20. The host tests and lint need nothing else but clj-kondo, and run on
+  Linux too.
 - **The jolt target pack for Android arm64.** `jolt pack` builds it once, from
   Chez Scheme v10.4.1, into `~/dev/pack-tarm64le-android-api28` (or wherever
   `PACK` points). It builds on an Apple Silicon Mac only.
 - **The Android NDK, r30 (30.0.16248370),** and the SDK's CMake 4.1.2, under
-  `$ANDROID_HOME`. When the NDK is missing, `scripts/pack` says to run
-  `android sdk install ndk/30.0.16248370`: that is Google's `android`
-  command-line tool, which this repository's `mise.toml` does not put on `PATH`
-  (it adds only `platform-tools` and `emulator`). Run it from wherever you
-  installed it, or use `sdkmanager --install "ndk;30.0.16248370"`.
+  `$ANDROID_HOME`: `sdkmanager --install "ndk;30.0.16248370"` installs the NDK.
 - **[mise](https://mise.jdx.dev).** `mise.toml` sets the JDK the demo's Gradle
   build runs on (Temurin 21) and `ANDROID_HOME` (`~/Library/Android/sdk`), for
   this directory only. Run `mise trust` once per clone, then run the Android
@@ -124,6 +121,8 @@ stack vertically).
   centred.
 - `:hexpand`/`:vexpand`: the child takes the stack's slack along that axis.
 - `:alpha`: 0.0–1.0; `:center-y`, a vertical offset in dp.
+- `:sensitive`: `false` dims the view to 0.4 of its `:alpha`. A button is also
+  disabled.
 - `:key`: glimmer's key, for reordering.
 - On the root: `:vfill` (the root fills the screen's height, so a `:vexpand`
   child can push a footer down) and `:full-bleed` (the root is not padded by the
@@ -144,16 +143,17 @@ stack vertically).
   `:label`), `:font-size` (sp, default 15), `:font-weight` (`:bold`),
   `:foreground`, `:background`, `:radius`, `:border` (`[width "#rrggbb" alpha]`),
   `:padding` (the text's left and right inset, dp), `:xalign`, and
-  `:sensitive` (false disables the button and dims it to 0.4).
+  `:sensitive` (false disables the button, as well as dimming it).
 - Checkbutton: `:active`, `:symbol` (the check mark's size, default 24),
   `:foreground` (its colour), `:background`, `:radius`, and `:description` (the
   accessibility description, which a test can find it by).
 - Image: `:src`: a file in the APK's assets.
 - Gradient: `:stops`: `[["#rrggbb" alpha location] ...]`, top to bottom.
 
-**A button's `:height` is its least height.** At the font size a design was
-drawn at, nothing moves. When a person sets larger text in Settings, the button
-grows instead of cutting its text off. Every other tag's `:height` is exact.
+**A button's or checkbutton's `:height` is its least height.** At the font size
+a design was drawn at, nothing moves. When a person sets larger text in
+Settings, it grows instead of cutting its text off. Every other tag's
+`:height` is exact.
 
 **Markup.** A label's `:markup` takes Pango-style hiccup data, the vocabulary
 glimmer-uikit and glimmer-gtk use: `[:span {:foreground "#ffffff" :size
@@ -202,6 +202,9 @@ a reused View looks like a new one with the later render's props.
   name, or nil.
 - `open-url!`: open a link with the app Android chooses (`mailto:` reaches only
   email apps). Nothing to open it is printed, never thrown.
+- `stop!` and `reset-back!` are internals: used by tests; not part of the app
+  API. `stop!` is what C's stop export runs, and `glimmer-android.fake/run`
+  calls both between tests.
 
 A throw in a handler, the Back handler, the background handler or a mount is
 printed, never passed to C: one that escaped into C would end the process.
@@ -214,8 +217,11 @@ Work scheduled by glimmer runs inline, since Jolt runs on the UI thread.
 ```clojure
 jolt-lang/glimmer-android {:git/url "https://github.com/jolt-lang/glimmer-android"
                            :git/tag "v0.1.0"
-                           :git/sha "<the tag's commit>"}
+                           :git/sha "<sha>"}
 ```
+
+The sha is the tag's commit: the hash on the `refs/tags/v0.1.0^{}` line that
+`git ls-remote https://github.com/jolt-lang/glimmer-android v0.1.0` prints.
 
 Put it in the alias the app's Android build uses, and in its test alias if
 tests use the fake. Two aliases that pin different commits do not fail: jolt

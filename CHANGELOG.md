@@ -16,8 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `:checkbutton`, `:image` and `:gradient`.
 - The props: layout (`:width`, `:height`, `:halign`, `:valign`, `:hexpand`,
   `:vexpand`, `:vfill`, `:full-bleed`, `:safe`), colours, borders and radii,
-  Pango markup as hiccup data, dates, and a button's `:height` as its least
-  height. An unknown prop is named once and ignored.
+  Pango markup as hiccup data, dates, and a button's or checkbutton's `:height`
+  as its least height. An unknown prop is named once and ignored.
 - The widget layer: prop groups that reset a prop a later render leaves out,
   the handler of the latest render behind each listener, and a whole subtree
   released on removal.
