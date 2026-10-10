@@ -80,15 +80,15 @@ default `:examples`), then reads it back for three checks: it exports
 `liblog`, and aligns every `LOAD` segment to 16 KB, so it loads on a 16 KB-page
 device. `jolt demo` runs it.
 
-`DIR` must be new or empty: a proof never overwrites another's pictures.
+`DIR` must be new or empty: a proof never overwrites another's pictures. Besides
+a screenshot per step and `logcat.txt`, it keeps `proof.txt`, the proof's own
+output, and `commit.txt`, the commit it proved.
 
 ### The proofs that have run
 
-The demo proof passed 20 of 20 checks on two API 36 emulators, one with 4 KB
-pages and one with 16 KB pages, on Friday 2026-10-09 EDT, with the code of this
-release. Its records are the directories `ga-0.1.0-clip-4k` and
-`ga-0.1.0-clip-16k`, on the Mac mini that ran them: ten screenshots and
-logcat each.
+The demo proof passed 20 of 20 checks on two arm64 emulators, both API 36, one
+with 4 KB pages and one with 16 KB pages, on Friday 2026-10-09 EDT, with the
+code of this release.
 
 The checks: the label reads back after an `input tap`; the deliberately clipped
 label is logged; the count survives a rotation and a tap after it works;

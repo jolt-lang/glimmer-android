@@ -3,7 +3,8 @@
 #   back through uiautomator; a screenshot at each step into DIR.
 #   AVD=<name> picks the emulator: Medium_Phone_API_36.0 by default, and
 #   for the second run any AVD with 16 KB pages. The helpers, and the boot
-#   on console port 5580, are in emulator-lib.
+#   on console port 5580, are in emulator-lib. DIR keeps proof.txt, this
+#   output, and commit.txt, the commit it proved.
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -21,6 +22,9 @@ cd "$(git rev-parse --show-toplevel)"
 [ -f "$APK" ] || die "no $APK — run: jolt demo"
 mkdir -p "$out"
 if [ -n "$(ls -A "$out")" ]; then die "$out is not empty; give a new directory"; fi
+# the record: what was proved, and what said so
+git rev-parse HEAD > "$out/commit.txt"
+exec > >(tee "$out/proof.txt")
 boot
 
 # 1. launch
@@ -132,7 +136,12 @@ check "input keyevent 4 reached the callback: the first screen's Tap is back" ha
 check "C logged one Back ($(backs))" test "$(backs)" = 1
 a shell input keyevent 4
 sleep 2; shot 10-back-again
-gone() { ! a shell dumpsys window | grep mCurrentFocus | grep "$PKG" >/dev/null; }
+# dumpsys first: in a pipe after !, an adb that failed would read as gone
+gone() {
+  local w
+  w=$(a shell dumpsys window) || return 1
+  ! grep mCurrentFocus <<<"$w" | grep "$PKG" >/dev/null
+}
 check "a second Back, which nothing takes, sent the Activity away" gone
 check "and did not reach the callback ($(backs))" test "$(backs)" = 1
 log=$(a logcat -d -s "glimmer-android:*")
