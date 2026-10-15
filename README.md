@@ -216,7 +216,7 @@ Work scheduled by glimmer runs inline, since Jolt runs on the UI thread.
 
 ```clojure
 jolt-lang/glimmer-android {:git/url "https://github.com/jolt-lang/glimmer-android"
-                           :git/tag "v0.2.0"
+                           :git/tag "v0.2.1"
                            :git/sha "<sha>"}
 ```
 
