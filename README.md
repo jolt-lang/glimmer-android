@@ -225,7 +225,7 @@ The sha is the tag's commit: the hash on the `refs/tags/v0.2.0^{}` line that
 
 Put it in the alias the app's Android build uses, and in its test alias if
 tests use the fake. Two aliases that pin different commits do not fail: jolt
-takes the last alias's, so keep them equal. glimmer-android pins glimmer v0.1.1.
+takes the last alias's, so keep them equal. glimmer-android pins glimmer v0.1.6.
 An app that pins glimmer itself wins, since jolt's deps walk is breadth-first,
 so move that pin with this one.
 
