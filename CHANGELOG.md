@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `fetch!` and `cancel-fetch!`: a GET over `HttpURLConnection` off the UI
+  thread, answered once on it with `{:status :body}` or `{:error}`, with
+  connect, read and total timeouts. The body is UTF-8 text of at most 1 MiB.
+- `debuggable?`, whether the app is a debuggable build.
+- The fake's `fetches`, `cancels`, `answer-fetch!`, `*fetches?*` and
+  `*debuggable*`.
+- The demo's Fetches screen, and section 9 of its proof.
+
+### Changed
+
+- `nativeStart` takes whether the app is debuggable. The Java and the C move
+  together under one pin.
+
 ## [0.2.0] - 2026-10-10
 
 ### Added
