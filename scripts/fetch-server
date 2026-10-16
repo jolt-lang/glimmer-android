@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # jolt fetch-server: the demo's fetch cases on 127.0.0.1:8765, which the
-#   emulator reaches as 10.0.2.2:8765. scripts/proof starts and stops it.
+#   emulator reaches as 10.0.2.2:8765, and on 8766 a port that never
+#   accepts. scripts/proof starts and stops it.
+import socket
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -46,4 +48,29 @@ class Cases(BaseHTTPRequestHandler):
         sys.stderr.write("fetch-server: " + (fmt % args) + "\n")
 
 
+def never_accepts(port):
+    """A listener whose backlog is full, so the kernel drops each new SYN
+    and a connect to it times out. The emulator's own network answers a
+    connect only once the Mac's has connected, so the guest times out too.
+    An unroutable address would do the same, but whether one fails fast
+    depends on the network: 10.255.255.1 is refused here in 80 ms. Filled
+    by connecting until a connect times out; macOS keeps 128 at listen(0).
+    Answers the listener and its fillers, which must stay open."""
+    sink = socket.socket()
+    sink.bind(("127.0.0.1", port))
+    sink.listen(0)
+    held = []
+    for _ in range(4096):
+        c = socket.socket()
+        c.settimeout(0.5)
+        try:
+            c.connect(("127.0.0.1", port))
+        except TimeoutError:
+            c.close()
+            return sink, held
+        held.append(c)
+    sys.exit("fetch-server: port %d accepted 4096 connections and never filled" % port)
+
+
+sink = never_accepts(8766)
 ThreadingHTTPServer(("127.0.0.1", 8765), Cases).serve_forever()

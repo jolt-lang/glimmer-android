@@ -5,8 +5,8 @@
   <!-- enableOnBackInvokedCallback: without it Android 13 and up never call the
        callback glimmer-android registers while a screen takes Back -->
   <uses-permission android:name="android.permission.INTERNET" />
-  <!-- network_security_config: plain HTTP is allowed to the proof's two
-       addresses only, 10.0.2.2 and 10.255.255.1 -->
+  <!-- network_security_config: plain HTTP is allowed to the proof's
+       address only, 10.0.2.2 -->
   <application android:label="glimmer demo"
                android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
                android:enableOnBackInvokedCallback="true"

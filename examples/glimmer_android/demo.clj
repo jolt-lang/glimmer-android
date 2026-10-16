@@ -108,8 +108,8 @@
 (defonce ^:private slow (atom nil))   ; the handle of the slow fetch, until it is cancelled
 
 (defn fetches-screen
-  "One button per case the proof checks. The unroutable address stands
-  for a server that never accepts. The slow fetch is started by one
+  "One button per case the proof checks. Port 8766 stands for a server
+  that never accepts: scripts/fetch-server fills its backlog. The slow fetch is started by one
   button and cancelled by another, tapped a second later: by then the
   worker has its connection, so the cancel's disconnect has a socket to
   close, off the UI thread."
@@ -117,7 +117,7 @@
   (into [:vbox {:spacing 8 :margin 16}]
         (concat
          (for [[label url] [["ok" (str server "/ok")] ["missing" (str server "/missing")]
-                            ["connect" "http://10.255.255.1/"] ["silent" (str server "/silent")]
+                            ["connect" "http://10.0.2.2:8766/"] ["silent" (str server "/silent")]
                             ["trickle" (str server "/trickle")] ["big" (str server "/big")]]]
            [:button {:label (str "Fetch " label) :on-click (fn [] (ask! label url))}])
          [[:button {:label "Fetch slow"
