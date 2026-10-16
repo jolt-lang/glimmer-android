@@ -29,10 +29,12 @@
    "ga_format_date" #'f/ga-format-date*         "ga_set_back" #'f/ga-set-back*
    "ga_set_min_height" #'f/ga-set-min-height*
    "ga_files_dir" #'f/ga-files-dir*             "ga_version" #'f/ga-version*
+   "ga_debuggable" #'f/ga-debuggable*
    "ga_open_url" #'f/ga-open-url*})
 
 (def ^:dynamic *files-dir* "What ga_files_dir answers." "/tmp/fake-files")
 (def ^:dynamic *version* "What ga_version answers." "1.0")
+(def ^:dynamic *debuggable* "What ga_debuggable answers: false, as a release build." false)
 (def ^:dynamic *opens?* "Whether ga_open_url finds an app to open the link." true)
 
 (def ^:private state (atom nil))
@@ -53,7 +55,7 @@
   [nm args]
   (case nm
     ("ga_create" "ga_run" "ga_stop" "ga_set_full_bleed" "ga_format_date" "ga_set_back"
-     "ga_files_dir" "ga_version" "ga_open_url") []
+     "ga_files_dir" "ga_version" "ga_debuggable" "ga_open_url") []
     ("ga_append" "ga_remove" "ga_move") (take 2 args)
     "ga_replace" (take 3 args)
     [(first args)]))
@@ -102,6 +104,7 @@
               "ga_format_date" "Oct 6, 2026"
               "ga_files_dir"   *files-dir*
               "ga_version"     *version*
+              "ga_debuggable"  (if *debuggable* 1 0)
               "ga_open_url"    (if *opens?* 1 0)
               1))))))
 

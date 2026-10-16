@@ -40,6 +40,7 @@
 (ffi/defcfn ga-set-min-height*  "ga_set_min_height"  [:int :double] :int)
 (ffi/defcfn ga-files-dir*       "ga_files_dir"       [] :string)
 (ffi/defcfn ga-version*         "ga_version"         [] :string)
+(ffi/defcfn ga-debuggable*      "ga_debuggable"      [] :int)
 (ffi/defcfn ga-open-url*        "ga_open_url"        [:string] :int)
 
 (def signatures
@@ -79,6 +80,7 @@
    "ga_set_min_height" [:int :double]
    "ga_files_dir" []
    "ga_version" []
+   "ga_debuggable" []
    "ga_open_url" [:string]})
 
 (defonce released (atom #{}))   ; ids Clojure has released
@@ -178,6 +180,11 @@
   "The app's version name; empty when Java had none."
   []
   (ga-version*))
+
+(defn debuggable
+  "Whether the app is debuggable, as Java's FLAG_DEBUGGABLE says."
+  []
+  (= 1 (ga-debuggable*)))
 
 (defn open-url
   "Ask Android to open `url`: true when an app took it, false when none

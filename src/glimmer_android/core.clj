@@ -111,6 +111,13 @@
   []
   (not-empty (f/version)))
 
+(defn debuggable?
+  "True in a debuggable build: the app's FLAG_DEBUGGABLE, which a release
+  build does not set. The same library is in both builds, so this is how
+  an app keeps a debug-only hook out of a release."
+  []
+  (f/debuggable))
+
 (defonce ^:private background (atom nil))
 
 (defn on-background!
