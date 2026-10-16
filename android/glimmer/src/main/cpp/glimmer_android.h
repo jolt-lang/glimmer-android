@@ -1,4 +1,4 @@
-/* State and helpers glimmer_android.c shares with glimmer_more.c. */
+/* State and helpers glimmer_android.c shares with glimmer_more.c and glimmer_fetch.c. */
 #ifndef GLIMMER_ANDROID_H
 #define GLIMMER_ANDROID_H
 #include <jni.h>
@@ -17,6 +17,7 @@ extern jobject g_root;
 extern jobject g_views[CAP];
 extern int g_next_id;
 extern float g_density;
+extern void (*ga_jolt_fetched)(int, int, const char *, const char *);
 
 JNIEnv *ga_env(void);
 int ga_failed(JNIEnv *e, const char *call);
@@ -26,4 +27,5 @@ void ga_more_teardown(JNIEnv *e);
 void ga_more_release(int id);
 jobject create_more(JNIEnv *e, int kind);
 jobject container(int id);
+int ga_fetch_cache(JNIEnv *e);
 #endif

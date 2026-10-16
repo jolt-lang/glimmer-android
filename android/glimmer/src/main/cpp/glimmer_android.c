@@ -24,6 +24,7 @@ static void (*jolt_stop)(void);
 static void (*jolt_entry)(void);
 static void (*jolt_back)(void);
 static void (*jolt_background)(void);
+void (*ga_jolt_fetched)(int, int, const char *, const char *);   /* NULL on an older library */
 static jmethodID m_set_back_taken;   /* the Activity's setBackTaken(Z)V */
 static char files_dir[1024];      /* the app's files directory, from Java */
 static char app_version[128];     /* its version name, from Java */
@@ -122,6 +123,7 @@ static int cache(JNIEnv *e) {
   f_width  = (*e)->GetFieldID(e, c_params, "width", "I");
   f_height = (*e)->GetFieldID(e, c_params, "height", "I");
   if (!f_width || !f_height) { ga_failed(e, "LayoutParams width/height"); return 0; }
+  if (!ga_fetch_cache(e)) return 0;
   cached = 1;
   return 1;
 }
@@ -278,6 +280,9 @@ static int start_jolt(JNIEnv *e, jstring lib, jstring entry) {
   jolt_back  = (void (*)(void))lookup("glimmer_android_back");
   jolt_background = (void (*)(void))lookup("glimmer_android_background");
   jolt_entry = (void (*)(void))lookup(n);
+  /* not required: absent only from an app built on an older library,
+   * where a fetch's answer is logged and dropped */
+  ga_jolt_fetched = (void (*)(int, int, const char *, const char *))lookup("glimmer_android_fetched");
   if (!jolt_event || !jolt_stop || !jolt_back || !jolt_background || !jolt_entry) {
     LOGE("missing export: event %p, stop %p, back %p, background %p, %s %p", (void *)jolt_event,
          (void *)jolt_stop, (void *)jolt_back, (void *)jolt_background, n, (void *)jolt_entry);
