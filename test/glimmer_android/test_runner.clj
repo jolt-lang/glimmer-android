@@ -45,6 +45,7 @@
                      glimmer-android.props-test
                      glimmer-android.widget-test
                      glimmer-android.core-test
+                     glimmer-android.fetch-test
                      glimmer-android.conformance-test
                      glimmer-android.demo-test
                      glimmer-android.test-runner-test]

@@ -42,6 +42,8 @@
 (ffi/defcfn ga-version*         "ga_version"         [] :string)
 (ffi/defcfn ga-debuggable*      "ga_debuggable"      [] :int)
 (ffi/defcfn ga-open-url*        "ga_open_url"        [:string] :int)
+(ffi/defcfn ga-fetch*           "ga_fetch"           [:int :string :pointer :int :int :int] :int)
+(ffi/defcfn ga-cancel-fetch*    "ga_cancel_fetch"    [:int] :int)
 
 (def signatures
   "Each call's argument types, as the bindings above declare them."
@@ -81,7 +83,9 @@
    "ga_files_dir" []
    "ga_version" []
    "ga_debuggable" []
-   "ga_open_url" [:string]})
+   "ga_open_url" [:string]
+   "ga_fetch" [:int :string :pointer :int :int :int]
+   "ga_cancel_fetch" [:int]})
 
 (defonce released (atom #{}))   ; ids Clojure has released
 
@@ -191,3 +195,19 @@
   could. Never throws."
   [url]
   (= 1 (ga-open-url* (str url))))
+
+(defn fetch
+  "Ask Java to GET `url` as fetch `handle`, with `headers`, a sequence of
+  alternating names and values, and the timeouts in milliseconds. True
+  when Java took it. The headers cross as a NULL-terminated array of C
+  strings: with-c-string-array adds no terminator, so the last member is
+  nil, which it makes the NULL entry."
+  [handle url headers connect read total]
+  (let [strings (conj (mapv str headers) nil)]
+    (ffi/with-c-string-array [p (count strings)] strings
+      (= 1 (ga-fetch* (long handle) (str url) p (long connect) (long read) (long total))))))
+
+(defn cancel-fetch
+  "Ask Java to cancel fetch `handle`: true when C reached it."
+  [handle]
+  (= 1 (ga-cancel-fetch* (long handle))))

@@ -132,6 +132,53 @@
   (when-not (f/open-url url)
     (println "glimmer-android: nothing opened" url)))
 
+(defonce ^:private fetches
+  ;; handle -> on-answer, for each fetch neither answered nor cancelled.
+  ;; Only the UI thread touches it: fetch! and cancel-fetch! run there,
+  ;; and C calls glimmer_android_fetched there.
+  (atom {}))
+
+(defonce ^:private last-handle (atom 0))
+
+(def ^:private default-timeouts {:connect 10000 :read 5000 :total 10000})
+
+(defn fetch!
+  "GET `url` off the UI thread. `opts` is {:headers {name value} :timeout-ms
+  {:connect :read :total}}, each in milliseconds and each optional; the
+  defaults are 10, 5 and 10 seconds. `on-answer` is called once, on the UI
+  thread, with {:status :body} for any HTTP status, or {:error} when there
+  was no response; never after cancel-fetch!. Answers a handle for
+  cancel-fetch!. Throws, naming `url`, when the fetch cannot start."
+  [url {:keys [headers timeout-ms]} on-answer]
+  (let [handle (swap! last-handle inc)
+        {:keys [connect read total]} (merge default-timeouts timeout-ms)]
+    (swap! fetches assoc handle on-answer)
+    (if (f/fetch handle url (mapcat identity headers) connect read total)
+      handle
+      (do (swap! fetches dissoc handle)
+          (throw (ex-info (str "glimmer-android: could not start a fetch of " url) {:url url}))))))
+
+(defn cancel-fetch!
+  "Cancel fetch `handle`: its on-answer is never called. With nothing
+  pending under `handle`, it does nothing. Answers nil."
+  [handle]
+  (when (contains? @fetches handle)
+    (swap! fetches dissoc handle)
+    (f/cancel-fetch handle))
+  nil)
+
+(defn- fetched
+  "A fetch's answer, from C, on the UI thread. One not pending (cancelled,
+  timed out, or answered already) is dropped. That is what makes once,
+  and never after a cancel, hold however Java's threads race. A callback
+  that throws is printed, not passed to C."
+  [handle status body error]
+  (when-let [on-answer (get @fetches handle)]
+    (swap! fetches dissoc handle)
+    (try (on-answer (if (some? error) {:error error} {:status status :body (or body "")}))
+         (catch :default e
+           (println "glimmer-android: a fetch's callback threw:" (ex-message e))))))
+
 (defn- on-stop
   "The Activity stopped. A throw is printed, not passed to C."
   []
@@ -142,6 +189,7 @@
 (ffi/export! "glimmer_android_background" on-stop [] :void :collect-safe)
 (ffi/export! "glimmer_android_event" event [:int :int] :void :collect-safe)
 (ffi/export! "glimmer_android_back" back [] :void :collect-safe)
+(ffi/export! "glimmer_android_fetched" fetched [:int :int :string :string] :void :collect-safe)
 (ffi/export! "glimmer_android_stop"
              (fn [] (try (stop!)
                          (catch :default e (println "glimmer-android: stop threw:" (ex-message e)))))
