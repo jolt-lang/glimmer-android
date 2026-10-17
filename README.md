@@ -84,8 +84,8 @@ output, and `commit.txt`, the commit it proved.
 
 ### The proofs that have run
 
-The demo proof passed 23 of 23 checks on two arm64 emulators, both API 36, one
-with 4 KB pages and one with 16 KB pages, on Saturday 10 October 2026 EDT, with
+The demo proof passed 41 of 41 checks on two arm64 emulators, both API 36, one
+with 4 KB pages and one with 16 KB pages, on Friday 16 October 2026 EDT, with
 the code of this release.
 
 The checks: the label reads back after an `input tap`; the deliberately clipped
@@ -97,6 +97,15 @@ only a re-render draws; no prop was unknown and no call failed; the passages,
 wrapped labels in a scroll, show with nothing logged as clipped, and no markup
 element draws plain; and Back, taken by the passages, returns to the first
 screen, while a second Back, which nothing takes, sends the Activity away.
+
+Section 9, the fetch, runs `scripts/fetch-server` on the Mac, which the
+emulator reaches as `10.0.2.2`. The demo is debuggable; a 200 and a 404 answer
+their status and body; the connect, read and total timeouts answer inside their
+windows (about 2005, 3005 and 6005 ms against limits of 2000, 3000 and 6000 on
+both emulators); a body over 1 MiB is refused; a cancelled fetch never answers;
+and `cancel-fetch!` with nothing pending answers nil. The connect case asks a
+port on the Mac whose backlog the server fills, so the kernel drops each SYN: an
+unroutable address was refused at once on the network the proof ran on.
 
 ## Hiccup reference
 
@@ -210,6 +219,38 @@ A throw in a handler, the Back handler, the background handler or a mount is
 printed, never passed to C: one that escaped into C would end the process.
 Work scheduled by glimmer runs inline, since Jolt runs on the UI thread.
 
+## Fetching
+
+`fetch!` is a GET off the UI thread, answered on it:
+
+```clojure
+(def handle
+  (ga/fetch! "https://example.com/data.json"
+             {:headers {"Accept" "application/json"}
+              :timeout-ms {:connect 2000 :read 3000 :total 6000}}
+             (fn [{:keys [status body error]}] ...)))
+```
+
+- **Options**, both optional: `:headers`, a map of names to values, and
+  `:timeout-ms`, with `:connect`, `:read` and `:total`, each optional, in
+  milliseconds. The defaults are 10 s, 5 s and 10 s. The total timeout covers
+  the whole fetch, and answers `{:error "timeout"}`.
+- **The answer** is `{:status :body}` for any HTTP status, a 404 included, or
+  `{:error "..."}` when there was no response. A non-2xx body is read from the
+  error stream.
+- **Once.** The handler runs once, on the UI thread, and never after
+  `cancel-fetch!`, however the cancel races an answer already on its way.
+- **The body** is UTF-8 text, at most 1 MiB; a longer one answers
+  `{:error "body over 1 MiB"}`. It ends at a NUL byte, so a body with one is
+  cut there.
+- **The throw.** `fetch!` throws, naming the URL, when the fetch cannot start.
+  It answers a handle, and `(ga/cancel-fetch! handle)` cancels that fetch. It
+  answers nil, and does nothing when nothing is pending under the handle.
+
+`debuggable?` says whether the app was built debuggable (its
+`FLAG_DEBUGGABLE`). The same library is in a debug and a release build, so this
+is how an app keeps a debug-only hook out of a release.
+
 ## Using it from an app
 
 ### The pin
@@ -283,6 +324,17 @@ callback `take-back!` registers. Without an action bar, a full-bleed screen
 reaches the status bar, so `:safe` has a bar to clear. `android/demo/` is a
 whole project to copy; it reads the Java and C at `../glimmer` instead of a
 property.
+
+An app that fetches needs three more things:
+
+- `<uses-permission android:name="android.permission.INTERNET" />` in its
+  manifest.
+- A network security config that allows plain HTTP to the hosts it asks, if any
+  is not HTTPS: Android blocks cleartext traffic from API 28. The demo's, in
+  `android/demo/src/main/res/xml/`, allows `10.0.2.2` for the proof.
+- Keep rules for `glimmer.android.Click`, `glimmer.android.Fetch` and
+  `glimmer.android.GlimmerActivity` if the app minifies: C and the manifest
+  call them, and nothing in Java does.
 
 ### `:jolt/native`
 

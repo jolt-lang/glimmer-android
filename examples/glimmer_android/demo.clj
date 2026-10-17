@@ -8,7 +8,7 @@
             [jolt.ffi :as ffi]))
 
 (defonce taps (r/atom 0))
-(defonce showing (r/atom :taps))     ; :taps, :vocabulary or :passages
+(defonce showing (r/atom :taps))     ; :taps, :vocabulary, :passages or :fetches
 (defonce ticked (r/atom false))      ; the vocabulary's checkbutton
 
 (defn taps-screen []
@@ -16,7 +16,8 @@
    [:label {:label (str "Tapped " @taps " times")}]
    [:button {:label "Tap" :on-click #(swap! taps inc)}]
    [:label {:label "This label is far too long for its box" :width 60 :height 20}]
-   [:button {:label "Next" :on-click #(do (reset! showing :vocabulary) (ga/take-back! true))}]])
+   [:button {:label "Next" :on-click #(do (reset! showing :vocabulary) (ga/take-back! true))}]
+   [:button {:label "Fetches" :on-click #(do (reset! showing :fetches) (ga/take-back! true))}]])
 
 (def ^:private days
   "Four fixed days for :label-date, in milliseconds, at 16:00 UTC (noon
@@ -78,18 +79,72 @@
             [:label {:markup [:span {:size "17408" :weight "bold"} title] :xalign 0 :halign :fill}]
             [:label {:markup [:span {:size "17408"} body] :xalign 0 :wrap true :halign :fill}]]))])
 
+(def ^:private server
+  "The proof's local server, scripts/fetch-server, as the emulator reaches the Mac."
+  "http://10.0.2.2:8765")
+
+(def ^:private proof-timeouts
+  "Short, so the proof's three timeouts each take seconds: connect 2,
+  read 3, total 6."
+  {:connect 2000 :read 3000 :total 6000})
+
+(defn- summary
+  "An answer in one line: the status, the body's length and its start, or the error."
+  [{:keys [status body error]}]
+  (if error
+    (str "error " error)
+    (str status " " (count body) " chars " (pr-str (subs body 0 (min 40 (count body)))))))
+
+(defn- ask!
+  "Fetch `url` as the case named `label`, and print the answer with the
+  time it took. Answers the handle."
+  [label url]
+  (let [t0 (System/currentTimeMillis)]
+    (ga/fetch! url {:headers {"X-Glimmer" "demo"} :timeout-ms proof-timeouts}
+               (fn [a]
+                 (println "glimmer-demo: fetch" label "->" (summary a)
+                          "in" (- (System/currentTimeMillis) t0) "ms")))))
+
+(defonce ^:private slow (atom nil))   ; the handle of the slow fetch, until it is cancelled
+
+(defn fetches-screen
+  "One button per case the proof checks. Port 8766 stands for a server
+  that never accepts: scripts/fetch-server fills its backlog. The slow fetch is started by one
+  button and cancelled by another, tapped a second later: by then the
+  worker has its connection, so the cancel's disconnect has a socket to
+  close, off the UI thread."
+  []
+  (into [:vbox {:spacing 8 :margin 16}]
+        (concat
+         (for [[label url] [["ok" (str server "/ok")] ["missing" (str server "/missing")]
+                            ["connect" "http://10.0.2.2:8766/"] ["silent" (str server "/silent")]
+                            ["trickle" (str server "/trickle")] ["big" (str server "/big")]]]
+           [:button {:label (str "Fetch " label) :on-click (fn [] (ask! label url))}])
+         [[:button {:label "Fetch slow"
+                    :on-click #(do (reset! slow (ask! "slow" (str server "/slow")))
+                                   (println "glimmer-demo: fetch slow started"))}]
+          [:button {:label "Cancel slow"
+                    :on-click #(do (ga/cancel-fetch! @slow)
+                                   (reset! slow nil)
+                                   (println "glimmer-demo: fetch slow cancelled"))}]
+          [:button {:label "Cancel nothing"
+                    :on-click #(println "glimmer-demo: cancel with nothing pending ->"
+                                        (pr-str (ga/cancel-fetch! -1)))}]])))
+
 (defn screen []
   (case @showing
     :vocabulary [vocabulary]
     :passages   [passages-screen]
+    :fetches    [fetches-screen]
     [taps-screen]))
 
 (defn- main
-  "The entry, once per Activity. The vocabulary and the passages take
+  "The entry, once per Activity. The vocabulary, the passages and the fetches take
   Back, back to the first screen; the first screen leaves Back to Android. A throw is
   printed: one that escaped into C would end the process."
   []
-  (try (ga/back! (fn [] (reset! showing :taps) (ga/take-back! false)))
+  (try (println "glimmer-demo: debuggable?" (ga/debuggable?))
+       (ga/back! (fn [] (reset! showing :taps) (ga/take-back! false)))
        (ga/mount! [screen])
        (ga/take-back! (not= :taps @showing))   ; after a rotation, as before it
        (catch :default e

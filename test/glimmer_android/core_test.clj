@@ -119,3 +119,8 @@
     (binding [fake/*opens?* false]
       (let [out (with-out-str (is (nil? (ga/open-url! "mailto:someone@example.com"))))]
         (is (re-find #"nothing opened mailto:someone@example.com" out))))))
+
+(deftest debuggable-is-what-c-says                                      ; 0.3.0
+  (is (false? (ga/debuggable?)) "the fake's default: a release build")
+  (binding [fake/*debuggable* true]
+    (is (true? (ga/debuggable?)))))

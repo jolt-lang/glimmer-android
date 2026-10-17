@@ -4,7 +4,8 @@
 #   AVD=<name> picks the emulator: Medium_Phone_API_36.0 by default, and
 #   for the second run any AVD with 16 KB pages. The helpers, and the boot
 #   on console port 5580, are in emulator-lib. DIR keeps proof.txt, this
-#   output, and commit.txt, the commit it proved.
+#   output, commit.txt, the commit it proved, and fetch-server.txt, the
+#   log of scripts/fetch-server, which section 9 runs.
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -161,5 +162,87 @@ check "a second Back, which nothing takes, sent the Activity away" gone
 check "and did not reach the callback ($(backs))" test "$(backs)" = 1
 log=$(a logcat -d -s "glimmer-android:*")
 check "no call failed or threw after Back" test -z "$(grep -E " failed| threw" <<<"$log" || true)"
+
+# 9. the fetch, against scripts/fetch-server on the Mac, which the
+#    emulator reaches as 10.0.2.2:8765, and its port 8766, which never
+#    accepts, for the connect timeout. The trap stops the server too.
+python3 scripts/fetch-server >"$out/fetch-server.txt" 2>&1 &
+server=$!
+disown "$server"   # its kill at the exit is no job of bash's to report
+trap 'kill "$server" 2>/dev/null || true; cleanup' EXIT
+# curl -w prints 000 until something answers, whatever the status
+for _ in $(seq 1 10); do
+  [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8765/missing || true)" != 000 ] && break
+  sleep 1
+done
+[ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8765/missing || true)" != 000 ] \
+  || die "the fetch server never answered on 127.0.0.1:8765; see $out/fetch-server.txt"
+# section 8 sent the Activity away
+a shell am start -W -n "$PKG/glimmer.android.GlimmerActivity" >/dev/null
+sleep 2
+dlog() { a logcat -d -s "glimmer-android:*"; }
+check "the demo is debuggable" grep -q "glimmer-demo: debuggable? true" <<<"$(dlog)"
+press() {   # tap the button labelled $1
+  local x y
+  IFS=" " read -r x y <<<"$(centre "$1")"
+  [ -n "${x:-}" ] || die "no $1 button in the tree"
+  a shell input tap "$x" "$y"
+}
+fetched() { dlog | grep "glimmer-demo: fetch $1 -> " | tail -n 1 || true; }
+took() { sed -n 's/.* in \([0-9]*\) ms.*/\1/p' <<<"$1"; }
+ask() {   # tap "Fetch $1", then wait for its answer
+  press "Fetch $1"
+  for _ in $(seq 1 12); do [ -n "$(fetched "$1")" ] && return 0; sleep 1; done
+  die "fetch $1 never answered"
+}
+between() { [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]; }
+holds() { grep -qF -- "$2" <<<"$1"; }   # line $1 holds the text $2
+press Fetches
+sleep 2; shot 12-fetches
+
+ask ok; line=$(fetched ok); echo "proof: $line"
+check "ok answered 200" holds "$line" "-> 200"
+check "with the body, astral character and header intact" holds "$line" "⛳🏌 ok X-Glimmer=demo"
+ask missing; line=$(fetched missing); echo "proof: $line"
+check "missing answered 404" holds "$line" "-> 404"
+check "with its body" holds "$line" '"nothing here"'
+ask connect; line=$(fetched connect); ms=$(took "$line"); echo "proof: $line"
+check "connect timed out connecting" holds "$line" "-> error SocketTimeoutException"
+check "in 1500–5000 ms (${ms:-none})" between "${ms:-0}" 1500 5000
+ask silent; line=$(fetched silent); ms=$(took "$line"); echo "proof: $line"
+check "silent timed out reading" holds "$line" "-> error SocketTimeoutException"
+check "in 2500–5500 ms (${ms:-none})" between "${ms:-0}" 2500 5500
+ask trickle; line=$(fetched trickle); ms=$(took "$line"); echo "proof: $line"
+check "trickle hit the total" holds "$line" "-> error timeout"
+check "in 5500–8000 ms (${ms:-none})" between "${ms:-0}" 5500 8000
+ask big; line=$(fetched big); echo "proof: $line"
+check "big was refused" holds "$line" "-> error body over 1 MiB"
+shot 13-fetched
+
+# the cancel: started, then cancelled a second later, with the
+# connection open; its answer must never come. Both centres are read
+# first: a dump takes a second or two, and the cancel must land well
+# inside /slow's 5 s.
+IFS=" " read -r fx fy <<<"$(centre "Fetch slow")"
+IFS=" " read -r cx cy <<<"$(centre "Cancel slow")"
+[ -n "${fx:-}" ] && [ -n "${cx:-}" ] || die "no Fetch slow or Cancel slow button in the tree"
+a shell input tap "$fx" "$fy"
+sleep 1
+a shell input tap "$cx" "$cy"
+sleep 7   # past /slow's 5 s and the total's 6 s
+check "the slow fetch was cancelled" grep -q "glimmer-demo: fetch slow cancelled" <<<"$(dlog)"
+check "and never answered" test -z "$(fetched slow)"
+check "and nothing ran network I/O on the UI thread" \
+  test -z "$(a logcat -d | grep NetworkOnMainThreadException || true)"
+
+# a cancel with nothing pending
+press "Cancel nothing"
+sleep 1
+check "a cancel with nothing pending answered nil" \
+  grep -q "glimmer-demo: cancel with nothing pending -> nil" <<<"$(dlog)"
+log=$(dlog)
+check "nothing threw" test -z "$(grep " threw" <<<"$log" || true)"
+check "no fetch failed in C" \
+  test -z "$(grep -v "glimmer-demo:" <<<"$log" | grep -E "ga_fetch|Fetch" | grep "failed" || true)"
 a logcat -d > "$out/logcat.txt"
 echo "proof: all checks passed; pictures and logcat in $out"

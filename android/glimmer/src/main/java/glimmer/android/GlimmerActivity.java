@@ -29,12 +29,13 @@ public class GlimmerActivity extends Activity {
     String lib = meta.getString("glimmer.library");
     System.loadLibrary("glimmer_android");
     System.loadLibrary(lib);
-    if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+    boolean debuggable = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    if (debuggable) {
       ClipCheck.watch(content);
     }
     nativeStart(content, "lib" + lib + ".so", meta.getString("glimmer.entry"),
                 getResources().getDisplayMetrics().density,
-                getFilesDir().getAbsolutePath(), versionName());
+                getFilesDir().getAbsolutePath(), versionName(), debuggable);
   }
 
   private String versionName() {
@@ -89,7 +90,7 @@ public class GlimmerActivity extends Activity {
   }
 
   private native void nativeStart(FrameLayout content, String lib, String entry, float density,
-                                  String files, String version);
+                                  String files, String version, boolean debuggable);
   private native void nativeStop();
   private native void nativeBackground();
   static native void nativeEvent(int id, int kind);

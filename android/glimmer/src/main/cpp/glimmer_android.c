@@ -24,9 +24,11 @@ static void (*jolt_stop)(void);
 static void (*jolt_entry)(void);
 static void (*jolt_back)(void);
 static void (*jolt_background)(void);
+void (*ga_jolt_fetched)(int, int, const char *, const char *);   /* NULL on an older library */
 static jmethodID m_set_back_taken;   /* the Activity's setBackTaken(Z)V */
 static char files_dir[1024];      /* the app's files directory, from Java */
 static char app_version[128];     /* its version name, from Java */
+static int debuggable;            /* whether it is debuggable, from Java */
 
 static jclass c_linear, c_text, c_button, c_group, c_view, c_click, c_params;
 static jmethodID m_linear_new, m_orientation, m_text_new, m_set_text, m_button_new,
@@ -121,6 +123,7 @@ static int cache(JNIEnv *e) {
   f_width  = (*e)->GetFieldID(e, c_params, "width", "I");
   f_height = (*e)->GetFieldID(e, c_params, "height", "I");
   if (!f_width || !f_height) { ga_failed(e, "LayoutParams width/height"); return 0; }
+  if (!ga_fetch_cache(e)) return 0;
   cached = 1;
   return 1;
 }
@@ -277,6 +280,9 @@ static int start_jolt(JNIEnv *e, jstring lib, jstring entry) {
   jolt_back  = (void (*)(void))lookup("glimmer_android_back");
   jolt_background = (void (*)(void))lookup("glimmer_android_background");
   jolt_entry = (void (*)(void))lookup(n);
+  /* not required: absent only from an app built on an older library,
+   * where a fetch's answer is logged and dropped */
+  ga_jolt_fetched = (void (*)(int, int, const char *, const char *))lookup("glimmer_android_fetched");
   if (!jolt_event || !jolt_stop || !jolt_back || !jolt_background || !jolt_entry) {
     LOGE("missing export: event %p, stop %p, back %p, background %p, %s %p", (void *)jolt_event,
          (void *)jolt_stop, (void *)jolt_back, (void *)jolt_background, n, (void *)jolt_entry);
@@ -306,7 +312,7 @@ static void teardown(JNIEnv *e) {
 
 JNIEXPORT void JNICALL Java_glimmer_android_GlimmerActivity_nativeStart(
     JNIEnv *e, jobject self, jobject content, jstring lib, jstring entry, jfloat dp,
-    jstring files, jstring version) {
+    jstring files, jstring version, jboolean dbg) {
   if (!cache(e)) { LOGE("could not cache the Android classes"); return; }
   /* Each Activity is the same class, so its method is looked up once. */
   if (!m_set_back_taken) {
@@ -334,6 +340,7 @@ JNIEXPORT void JNICALL Java_glimmer_android_GlimmerActivity_nativeStart(
     if (s) { snprintf(app_version, sizeof app_version, "%s", s); (*e)->ReleaseStringUTFChars(e, version, s); }
     else { ga_failed(e, "nativeStart strings"); app_version[0] = 0; }
   }
+  debuggable = dbg == JNI_TRUE;
   if (!started && !start_jolt(e, lib, entry)) return;
   if (!jolt_entry) { LOGE("no entry to run; see the lines above"); return; }
   long t0 = millis();
@@ -366,6 +373,7 @@ JNIEXPORT void JNICALL Java_glimmer_android_GlimmerActivity_nativeBack(JNIEnv *e
 
 EXPORT const char *ga_files_dir(void) { return files_dir; }
 EXPORT const char *ga_version(void) { return app_version; }
+EXPORT int ga_debuggable(void) { return debuggable; }
 
 /* The Activity stopped: the app's moment to save. */
 JNIEXPORT void JNICALL Java_glimmer_android_GlimmerActivity_nativeBackground(JNIEnv *e, jobject self) {

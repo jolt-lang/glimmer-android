@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+# jolt fetch-server: the demo's fetch cases on 127.0.0.1:8765, which the
+#   emulator reaches as 10.0.2.2:8765, and on 8766 a port that never
+#   accepts. scripts/proof starts and stops it.
+import socket
+import sys
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+class Cases(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def send(self, status, body):
+        self.send_response(status)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        try:
+            if self.path == "/ok":    # ⛳ is in the BMP, 🏌 (U+1F3CC) is not; and the header the demo sent
+                self.send(200, ("⛳🏌 ok X-Glimmer=" + str(self.headers.get("X-Glimmer"))).encode())
+            elif self.path == "/missing":
+                self.send(404, b"nothing here")
+            elif self.path == "/silent":   # accepts, never answers: the read timeout
+                time.sleep(30)
+            elif self.path == "/trickle":  # a byte a second: never the read timeout, always the total
+                self.send_response(200)
+                self.send_header("Content-Length", "60")
+                self.end_headers()
+                for _ in range(60):
+                    self.wfile.write(b".")
+                    self.wfile.flush()
+                    time.sleep(1)
+            elif self.path == "/big":
+                self.send(200, b"x" * ((1 << 20) + 1))
+            elif self.path == "/slow":     # long enough to be cancelled first; under the 6 s total
+                time.sleep(5)
+                self.send(200, b"slow")
+            else:
+                self.send(404, b"no such case")
+        except (BrokenPipeError, ConnectionResetError):
+            pass   # the client gave up, as the cases mean it to
+
+    def log_message(self, fmt, *args):
+        sys.stderr.write("fetch-server: " + (fmt % args) + "\n")
+
+
+def never_accepts(port):
+    """A listener whose backlog is full, so the kernel drops each new SYN
+    and a connect to it times out. The emulator's own network answers a
+    connect only once the Mac's has connected, so the guest times out too.
+    An unroutable address would do the same, but whether one fails fast
+    depends on the network: 10.255.255.1 is refused here in 80 ms. Filled
+    by connecting until a connect times out; macOS keeps 128 at listen(0).
+    Answers the listener and its fillers, which must stay open."""
+    sink = socket.socket()
+    sink.bind(("127.0.0.1", port))
+    sink.listen(0)
+    held = []
+    for _ in range(4096):
+        c = socket.socket()
+        c.settimeout(0.5)
+        try:
+            c.connect(("127.0.0.1", port))
+        except TimeoutError:
+            c.close()
+            return sink, held
+        held.append(c)
+    sys.exit("fetch-server: port %d accepted 4096 connections and never filled" % port)
+
+
+sink = never_accepts(8766)
+ThreadingHTTPServer(("127.0.0.1", 8765), Cases).serve_forever()

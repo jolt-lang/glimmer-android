@@ -7,7 +7,8 @@
             [glimmer.backend :as backend]
             [glimmer-android.core :as ga]
             [glimmer-android.ffi :as f]
-            [glimmer-android.widget :as w]))
+            [glimmer-android.widget :as w]
+            [jolt.ffi :as ffi]))
 
 (def ^:private bindings
   "Every binding in glimmer-android.ffi, by its C name."
@@ -29,11 +30,15 @@
    "ga_format_date" #'f/ga-format-date*         "ga_set_back" #'f/ga-set-back*
    "ga_set_min_height" #'f/ga-set-min-height*
    "ga_files_dir" #'f/ga-files-dir*             "ga_version" #'f/ga-version*
-   "ga_open_url" #'f/ga-open-url*})
+   "ga_debuggable" #'f/ga-debuggable*
+   "ga_open_url" #'f/ga-open-url*
+   "ga_fetch" #'f/ga-fetch*                   "ga_cancel_fetch" #'f/ga-cancel-fetch*})
 
 (def ^:dynamic *files-dir* "What ga_files_dir answers." "/tmp/fake-files")
 (def ^:dynamic *version* "What ga_version answers." "1.0")
+(def ^:dynamic *debuggable* "What ga_debuggable answers: false, as a release build." false)
 (def ^:dynamic *opens?* "Whether ga_open_url finds an app to open the link." true)
+(def ^:dynamic *fetches?* "Whether ga_fetch starts the fetch." true)
 
 (def ^:private state (atom nil))
 
@@ -41,19 +46,21 @@
   "C's table with only the root, 0, in it."
   []
   {:views {0 {:kind 0 :children [] :set {}}} :next 0
-   :released [] :log [] :calls [] :refused [] :wrong []})
+   :released [] :log [] :calls [] :refused [] :wrong []
+   :fetches [] :cancels []})
 
 (defn- typed?
   "Whether `x` is what C declares as `t`."
   [t x]
-  (case t (:int :long) (int? x) :double (double? x) :string (string? x)))
+  (case t (:int :long) (int? x) :double (double? x) :string (string? x)
+    :pointer (ffi/pointer? x)))
 
 (defn- ids-named
   "The ids among call `nm`'s `args` that C looks up."
   [nm args]
   (case nm
     ("ga_create" "ga_run" "ga_stop" "ga_set_full_bleed" "ga_format_date" "ga_set_back"
-     "ga_files_dir" "ga_version" "ga_open_url") []
+     "ga_files_dir" "ga_version" "ga_debuggable" "ga_open_url" "ga_fetch" "ga_cancel_fetch") []
     ("ga_append" "ga_remove" "ga_move") (take 2 args)
     "ga_replace" (take 3 args)
     [(first args)]))
@@ -68,6 +75,14 @@
   [s parent g]
   (update-in s [:views parent :children] #(vec (g %))))
 
+;; Decode the headers while the call is live: C frees the array on return.
+(defn- strings-at
+  "The strings of the NULL-terminated array of C strings at `p`."
+  [p]
+  (loop [i 0 out []]
+    (let [s (ffi/read p :pointer (* i (ffi/sizeof :pointer)))]
+      (if (ffi/null? s) out (recur (inc i) (conj out (ffi/ptr->string s)))))))
+
 (defn- effect
   "What call `nm` with `args` does to C's table `s`."
   [s nm [a b c :as args]]
@@ -80,6 +95,7 @@
     "ga_replace" (kids s a #(map (fn [x] (if (= x b) c x)) %))
     "ga_move"    (kids s a #(let [cs (vec (remove #{b} %))] (concat (take c cs) [b] (drop c cs))))
     "ga_release" (-> s (update :released conj a) (update :log conj [:release a]))
+    ("ga_fetch" "ga_cancel_fetch" "ga_debuggable") s
     (if-let [id (first (ids-named nm args))]
       (assoc-in s [:views id :set nm] (vec (rest args)))
       (assoc-in s [:views 0 :set nm] (vec args)))))   ; a call with no view: kept on the root
@@ -98,11 +114,20 @@
         (do (swap! state update :refused conj call) 0)
         (do (swap! state effect nm args)
             (case nm
+              "ga_fetch"        (swap! state update :fetches conj
+                                       (let [[h url p c r t] args]
+                                         {:handle h :url url :headers (apply hash-map (strings-at p))
+                                          :timeout-ms {:connect c :read r :total t}}))
+              "ga_cancel_fetch" (swap! state update :cancels conj (first args))
+              nil)
+            (case nm
               "ga_create"      (:next @state)
               "ga_format_date" "Oct 6, 2026"
               "ga_files_dir"   *files-dir*
               "ga_version"     *version*
+              "ga_debuggable"  (if *debuggable* 1 0)
               "ga_open_url"    (if *opens?* 1 0)
+              "ga_fetch"       (if *fetches?* 1 0)
               1))))))
 
 (defn run
@@ -115,6 +140,7 @@
   (w/reset-tree!)
   (f/reset-released!)
   (ga/reset-back!)   ; a test never inherits the last one's flag
+  (reset! @#'ga/fetches {})   ; nor its pending fetches
   (with-redefs-fn (into {} (for [[nm v] bindings] [v (stand-in nm)]))
     (fn [] (try (test-fn)
                 (finally (when @@#'ga/mounted (ga/stop!))))))
@@ -189,3 +215,18 @@
   "The Activity stopping, as C reports it."
   []
   (#'ga/on-stop))
+
+(defn fetches
+  "Every fetch asked of C, in order: {:handle :url :headers :timeout-ms}."
+  []
+  (:fetches @state))
+
+(defn cancels
+  "The handles C was asked to cancel, in order."
+  []
+  (:cancels @state))
+
+(defn answer-fetch!
+  "Answer fetch `handle` as C does: `answer` is {:status :body} or {:error}."
+  [handle {:keys [status body error]}]
+  (#'ga/fetched handle (or status 0) body error))

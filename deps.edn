@@ -37,5 +37,7 @@
          pack  "bash scripts/pack"
          lib   "bash scripts/lib"
          demo  "bash scripts/demo"
+         ;; the demo's fetch cases on 127.0.0.1:8765, for scripts/proof
+         fetch-server "python3 scripts/fetch-server"
          ;; a form, so the directory reaches the script
          proof (apply shell "bash" "scripts/proof" *command-line-args*)}}
