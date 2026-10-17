@@ -257,7 +257,7 @@ is how an app keeps a debug-only hook out of a release.
 
 ```clojure
 jolt-lang/glimmer-android {:git/url "https://github.com/jolt-lang/glimmer-android"
-                           :git/tag "v0.2.1"
+                           :git/tag "v0.3.0"
                            :git/sha "<sha>"}
 ```
 

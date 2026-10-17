@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-17
+
 ### Added
 
 - `fetch!` and `cancel-fetch!`: a GET over `HttpURLConnection` off the UI
@@ -21,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `nativeStart` takes whether the app is debuggable. The Java and the C move
   together under one pin.
+
+## [0.2.1] - 2026-10-15
+
+### Changed
+
+- glimmer is pinned at v0.1.6.
 
 ## [0.2.0] - 2026-10-10
 
@@ -85,6 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the turn back to portrait, so the next boot could start turned. It now waits
   and syncs before it kills an emulator it booted.
 
-[Unreleased]: https://github.com/jolt-lang/glimmer-android/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jolt-lang/glimmer-android/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jolt-lang/glimmer-android/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/jolt-lang/glimmer-android/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jolt-lang/glimmer-android/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jolt-lang/glimmer-android/releases/tag/v0.1.0
