@@ -8,12 +8,12 @@
 (defn- pending [] @@#'ga/fetches)
 
 (deftest a-fetch-asks-c-with-its-url-headers-and-timeouts
-  (let [h (ga/fetch! "https://example.com/course?lat=1"
-                     {:headers {"User-Agent" "Tiger5" "Accept-Language" "en"}
+  (let [h (ga/fetch! "https://example.com/data?id=1"
+                     {:headers {"User-Agent" "example" "Accept-Language" "en"}
                       :timeout-ms {:connect 5000 :read 4000 :total 9000}}
                      (fn [_]))]
-    (is (= [{:handle h :url "https://example.com/course?lat=1"
-             :headers {"User-Agent" "Tiger5" "Accept-Language" "en"}
+    (is (= [{:handle h :url "https://example.com/data?id=1"
+             :headers {"User-Agent" "example" "Accept-Language" "en"}
              :timeout-ms {:connect 5000 :read 4000 :total 9000}}]
            (fake/fetches)))))
 
