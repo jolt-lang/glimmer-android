@@ -258,11 +258,12 @@ is how an app keeps a debug-only hook out of a release.
 ```clojure
 jolt-lang/glimmer-android {:git/url "https://github.com/jolt-lang/glimmer-android"
                            :git/tag "v0.3.0"
-                           :git/sha "<sha>"}
+                           :git/sha "1de93f9100a2138bcd8e80b5a9d9acc28db8e97f"}
 ```
 
-The sha is the tag's commit: the hash on the `refs/tags/v0.2.0^{}` line that
-`git ls-remote https://github.com/jolt-lang/glimmer-android v0.2.0` prints.
+The sha is the tag's commit, not the annotated tag object: for a later tag, take
+the `refs/tags/vX.Y.Z^{}` line that
+`git ls-remote https://github.com/jolt-lang/glimmer-android 'vX.Y.Z^{}'` prints.
 
 Put it in the alias the app's Android build uses, and in its test alias if
 tests use the fake. Two aliases that pin different commits do not fail: jolt
