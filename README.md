@@ -267,7 +267,7 @@ the `refs/tags/vX.Y.Z^{}` line that
 
 Put it in the alias the app's Android build uses, and in its test alias if
 tests use the fake. Two aliases that pin different commits do not fail: jolt
-takes the last alias's, so keep them equal. glimmer-android pins glimmer v0.1.6.
+takes the last alias's, so keep them equal. glimmer-android pins glimmer v0.1.8.
 An app that pins glimmer itself wins, since jolt's deps walk is breadth-first,
 so move that pin with this one.
 
