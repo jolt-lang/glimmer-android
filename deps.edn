@@ -19,8 +19,8 @@
  ;; the prop and event wiring and the app loop. An app that pins glimmer
  ;; itself wins over this pin: jolt's deps walk is breadth-first.
  :deps {jolt-lang/glimmer {:git/url "https://github.com/jolt-lang/glimmer"
-                           :git/tag "v0.1.6"
-                           :git/sha "d81af8fb2fa4164a2261db3c15fc7c93271dce60"}}
+                           :git/tag "v0.1.8"
+                           :git/sha "7f00d14d1b3c6239638d03780006c4a76fca379f"}}
 
  ;; The demo's test needs the demo, so :test puts examples/ on the path too.
  ;; An Android example cannot be `jolt run`; it is built into a shared
